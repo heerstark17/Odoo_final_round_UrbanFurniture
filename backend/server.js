@@ -6,6 +6,7 @@ const { pool, connectDB } = require("./config/db");
 const contactRoutes = require("./routes/contactRoutes");
 const productRoutes = require("./routes/productRoutes");
 const chartOfAccountRoutes =require("./routes/chartOfAccountRoutes");
+const taxRoutes = require("./routes/taxRoutes");
 
 const app = express();
 
@@ -40,6 +41,10 @@ app.use("/api/products", productRoutes);
 app.use(
     "/api/chart-of-accounts",
     chartOfAccountRoutes
+);
+app.use(
+    "/api/taxes",
+    taxRoutes
 );
 
 const PORT = process.env.PORT || 5000;
