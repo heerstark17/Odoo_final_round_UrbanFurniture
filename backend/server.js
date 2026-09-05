@@ -7,6 +7,9 @@ const contactRoutes = require("./routes/contactRoutes");
 const productRoutes = require("./routes/productRoutes");
 const chartOfAccountRoutes =require("./routes/chartOfAccountRoutes");
 const taxRoutes = require("./routes/taxRoutes");
+const journalRoutes = require("./routes/journalRoutes");
+const analyticAccountRoutes = require("./routes/analyticAccountRoutes");
+const budgetRoutes = require("./routes/budgetRoutes");
 
 const app = express();
 
@@ -46,6 +49,9 @@ app.use(
     "/api/taxes",
     taxRoutes
 );
+app.use("/api/journals", journalRoutes);
+app.use("/api/analytic-accounts", analyticAccountRoutes);
+app.use("/api/budgets", budgetRoutes);
 
 const PORT = process.env.PORT || 5000;
 
