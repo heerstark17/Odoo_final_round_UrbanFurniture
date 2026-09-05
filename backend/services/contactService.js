@@ -1,6 +1,6 @@
 const contactModel = require("../models/contactModel");
 
-const VALID_CONTACT_TYPES = ["customer", "vendor", "both"];
+const VALID_CONTACT_TYPES = ["customer", "vendor"];
 
 function normalizeOptional(value) {
     if (value === undefined || value === null) {
