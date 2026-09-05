@@ -3,6 +3,8 @@ require("dotenv").config();
 const express = require("express");
 const { pool, connectDB } = require("./config/db");
 
+const contactRoutes = require("./routes/contactRoutes");
+
 const app = express();
 
 app.use(express.json());
@@ -29,6 +31,8 @@ app.get("/db-test", async (req, res) => {
         });
     }
 });
+
+app.use("/api/contacts", contactRoutes);
 
 const PORT = process.env.PORT || 5000;
 
