@@ -29,13 +29,13 @@ async function validate(data) {
   if (!(await model.activeAnalytic(data.analyticAccountId)))
     throw new Error("Analytic account not found or inactive");
 }
-async function createLine(budgetId, data) {
+async function createLine(budgetId, data, actorId) {
   await ensureBudget(budgetId);
   data = normalise(data);
   await validate(data);
   return model.create(budgetId, data);
 }
-async function updateLine(budgetId, id, data) {
+async function updateLine(budgetId, id, data, actorId) {
   await getLine(budgetId, id);
   data = normalise(data);
   await validate(data);

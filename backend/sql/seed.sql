@@ -386,25 +386,34 @@ WHERE b.budget_name = 'FY 2026-27 Furniture Budget'
         AND bl.analytic_account_id = a.id
   );
 
-INSERT INTO users (
-    login_id,
-    full_name,
+INSERT INTO contacts (
+    name,
+    contact_type,
     email,
-    password_hash,
-    role,
-    contact_id
+    phone,
+    city,
+    state,
+    pincode,
+    profile_image_url
 )
 SELECT
-    'admin',
-    'Urban Furniture Admin',
-    'admin@urbanfurniture.local',
-    '$2b$10$72l2gOMRGQOuucP7q5s81.zca8YuFIRmoEY3ydNgP3os6Pa/QLZpC',
-    'admin',
+    format('Demo Contact %s', to_char(series.number, 'FM000')),
+    CASE series.number % 3
+        WHEN 0 THEN 'customer'
+        WHEN 1 THEN 'vendor'
+        ELSE 'both'
+    END,
+    format('contact%3$s@example.com', series.number, '', to_char(series.number, 'FM000')),
+    format('90000%05s', series.number),
+    'Ahmedabad',
+    'Gujarat',
+    format('%06s', 380000 + series.number),
     NULL
+FROM generate_series(1, 200) AS series(number)
 WHERE NOT EXISTS (
     SELECT 1
-    FROM users
-    WHERE login_id = 'admin'
+    FROM contacts c
+    WHERE c.email = format('contact%3$s@example.com', series.number, '', to_char(series.number, 'FM000'))
 );
 
 INSERT INTO users (
@@ -416,17 +425,14 @@ INSERT INTO users (
     contact_id
 )
 SELECT
-    'accountant',
-    'Urban Furniture Accountant',
-    'accountant@urbanfurniture.local',
-    '$2b$10$0dUGyzHP2A0.IBhZgA4DiukJeVbbJAmnFBcKDgSLrucECLDSn/ZQa',
-    'accountant',
+    format('admin%3$s', series.number, '', to_char(series.number, 'FM000')),
+    format('Demo Admin %s', to_char(series.number, 'FM000')),
+    format('admin%3$s@urbanfurniture.local', series.number, '', to_char(series.number, 'FM000')),
+    '$2b$10$.jycNP.ph3zlWPbOJIL2B.wTjgk7khExOKyeF28lA75g3F1XiYHDa',
+    'admin',
     NULL
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM users
-    WHERE login_id = 'accountant'
-);
+FROM generate_series(1, 200) AS series(number)
+ON CONFLICT (login_id) DO NOTHING;
 
 INSERT INTO users (
     login_id,
@@ -437,18 +443,33 @@ INSERT INTO users (
     contact_id
 )
 SELECT
-    'nimesh',
-    'Nimesh Pathak',
-    'nimesh@example.com',
-    '$2b$10$YpqPEEi0lSZJHpWlvbO6G.cWu7PSqaVF1Qpb3a0XHCW1Of/JpvHmS',
+    format('accountant%3$s', series.number, '', to_char(series.number, 'FM000')),
+    format('Demo Accountant %s', to_char(series.number, 'FM000')),
+    format('accountant%3$s@urbanfurniture.local', series.number, '', to_char(series.number, 'FM000')),
+    '$2b$10$.jycNP.ph3zlWPbOJIL2B.wTjgk7khExOKyeF28lA75g3F1XiYHDa',
+    'accountant',
+    NULL
+FROM generate_series(1, 200) AS series(number)
+ON CONFLICT (login_id) DO NOTHING;
+
+INSERT INTO users (
+    login_id,
+    full_name,
+    email,
+    password_hash,
+    role,
+    contact_id
+)
+SELECT
+    format('contact%3$s', series.number, '', to_char(series.number, 'FM000')),
+    format('Demo Contact %s', to_char(series.number, 'FM000')),
+    format('contact%3$s@example.com', series.number, '', to_char(series.number, 'FM000')),
+    '$2b$10$.jycNP.ph3zlWPbOJIL2B.wTjgk7khExOKyeF28lA75g3F1XiYHDa',
     'contact',
     c.id
-FROM contacts c
-WHERE c.email = 'nimesh@example.com'
-  AND NOT EXISTS (
-      SELECT 1
-      FROM users
-      WHERE login_id = 'nimesh'
-  );
+FROM generate_series(1, 200) AS series(number)
+JOIN contacts c
+    ON c.email = format('contact%3$s@example.com', series.number, '', to_char(series.number, 'FM000'))
+ON CONFLICT (login_id) DO NOTHING;
 
 COMMIT;

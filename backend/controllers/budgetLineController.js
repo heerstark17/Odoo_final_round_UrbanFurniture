@@ -48,6 +48,7 @@ async function create(req, res) {
         await service.createLine(
           parseId(req.params.budgetId, "budget"),
           req.body,
+          req.user.id,
         ),
       );
   } catch (error) {
@@ -61,6 +62,7 @@ async function update(req, res) {
         parseId(req.params.budgetId, "budget"),
         parseId(req.params.id, "budget line"),
         req.body,
+        req.user.id,
       ),
     );
   } catch (error) {
