@@ -5,6 +5,7 @@ const { pool, connectDB } = require("./config/db");
 
 const contactRoutes = require("./routes/contactRoutes");
 const productRoutes = require("./routes/productRoutes");
+const chartOfAccountRoutes =require("./routes/chartOfAccountRoutes");
 
 const app = express();
 
@@ -36,6 +37,10 @@ app.get("/db-test", async (req, res) => {
 
 app.use("/api/contacts", contactRoutes);
 app.use("/api/products", productRoutes);
+app.use(
+    "/api/chart-of-accounts",
+    chartOfAccountRoutes
+);
 
 const PORT = process.env.PORT || 5000;
 
