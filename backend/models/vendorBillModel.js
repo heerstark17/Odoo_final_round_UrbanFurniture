@@ -24,9 +24,9 @@ async function create(data) {
   ).rows[0];
 }
 
-async function update(id, data) {
+async function update(id, data, db = pool) {
   return (
-    await pool.query(
+    await db.query(
       `UPDATE vendor_bills
        SET bill_number = $1, vendor_id = $2, bill_date = $3, due_date = $4,
            reference = $5, status = $6, created_by = $7, updated_at = NOW()
@@ -40,8 +40,8 @@ async function remove(id) {
   return (await pool.query("DELETE FROM vendor_bills WHERE id = $1 RETURNING *", [id])).rows[0];
 }
 
-async function getLines(billId) {
-  return (await pool.query(`${lineSelect} WHERE vbl.bill_id = $1 ORDER BY vbl.id DESC`, [billId])).rows;
+async function getLines(billId, db = pool) {
+  return (await db.query(`${lineSelect} WHERE vbl.bill_id = $1 ORDER BY vbl.id DESC`, [billId])).rows;
 }
 
 async function getLine(billId, id) {
@@ -92,15 +92,20 @@ async function refreshTotals(billId, db = pool) {
   ).rows[0];
 }
 
-async function activeVendor(id) { return (await pool.query("SELECT id FROM contacts WHERE id = $1 AND is_active = true AND contact_type IN ('vendor', 'both')", [id])).rows[0]; }
-async function activeProduct(id) { return (await pool.query("SELECT id FROM products WHERE id = $1 AND is_active = true", [id])).rows[0]; }
-async function activeTax(id) { return (await pool.query("SELECT id, rate FROM taxes WHERE id = $1 AND is_active = true", [id])).rows[0]; }
-async function activeAnalytic(id) { return (await pool.query("SELECT id FROM analytic_accounts WHERE id = $1 AND is_active = true", [id])).rows[0]; }
-async function activeAccount(id) { return (await pool.query("SELECT id FROM chart_of_accounts WHERE id = $1 AND is_active = true", [id])).rows[0]; }
-async function activeUser(id) { return (await pool.query("SELECT id FROM users WHERE id = $1 AND is_active = true", [id])).rows[0]; }
+async function getForUpdate(id, db) { return (await db.query("SELECT * FROM vendor_bills WHERE id = $1 FOR UPDATE", [id])).rows[0]; }
+async function activeVendor(id, db = pool) { return (await db.query("SELECT id FROM contacts WHERE id = $1 AND is_active = true AND contact_type IN ('vendor', 'both')", [id])).rows[0]; }
+async function activeProduct(id, db = pool) { return (await db.query("SELECT id FROM products WHERE id = $1 AND is_active = true", [id])).rows[0]; }
+async function activeTax(id, db = pool) { return (await db.query(
+  `SELECT t.id, t.rate, t.purchase_tax_account_id
+   FROM taxes t JOIN chart_of_accounts a ON a.id = t.purchase_tax_account_id
+   WHERE t.id = $1 AND t.is_active = true AND a.is_active = true`, [id],
+)).rows[0]; }
+async function activeAnalytic(id, db = pool) { return (await db.query("SELECT id FROM analytic_accounts WHERE id = $1 AND is_active = true", [id])).rows[0]; }
+async function activeAccount(id, db = pool) { return (await db.query("SELECT id FROM chart_of_accounts WHERE id = $1 AND is_active = true", [id])).rows[0]; }
+async function activeUser(id, db = pool) { return (await db.query("SELECT id FROM users WHERE id = $1 AND is_active = true", [id])).rows[0]; }
 
 module.exports = {
-  getAll, getById, create, update, remove, getLines, getLine, createLine,
+  getAll, getById, getForUpdate, create, update, remove, getLines, getLine, createLine,
   updateLine, removeLine, refreshTotals, activeVendor, activeProduct, activeTax,
   activeAnalytic, activeAccount, activeUser,
 };

@@ -16,6 +16,10 @@ async function getById(id, db = pool) {
   return (await db.query(`${paymentSelect} WHERE p.id = $1`, [id])).rows[0];
 }
 
+async function getForUpdate(id, db) {
+  return (await db.query("SELECT * FROM payments WHERE id = $1 FOR UPDATE", [id])).rows[0];
+}
+
 async function create(data, db = pool) {
   return (
     await db.query(
@@ -120,6 +124,7 @@ async function activeUser(id, db = pool) {
 module.exports = {
   getAll,
   getById,
+  getForUpdate,
   create,
   update,
   remove,

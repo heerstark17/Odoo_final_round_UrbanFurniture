@@ -1,6 +1,8 @@
 const { pool } = require("../config/db");
 const model = require("../models/vendorBillModel");
 const purchaseModel = require("../models/purchaseOrderModel");
+const journalEntryModel = require("../models/journalEntryModel");
+const journalEntryService = require("./journalEntryService");
 
 const STATUSES = ["draft", "confirmed", "paid", "cancelled"];
 
@@ -36,11 +38,11 @@ function normalizeLine(data = {}) {
     quantity: decimal(data.quantity, "Quantity", 0.0000001), unitPrice: decimal(data.unitPrice, "Unit price", 0),
   };
 }
-async function validateBill(data) {
-  if (!(await model.activeVendor(data.vendorId))) fail("Vendor not found, inactive, or not a vendor");
-  if (data.createdBy && !(await model.activeUser(data.createdBy))) fail("Created by user not found or inactive");
+async function validateBill(data, db = pool) {
+  if (!(await model.activeVendor(data.vendorId, db))) fail("Vendor not found, inactive, or not a vendor");
+  if (data.createdBy && !(await model.activeUser(data.createdBy, db))) fail("Created by user not found or inactive");
   if (data.poId) {
-    const order = await purchaseModel.getById(data.poId);
+    const order = await purchaseModel.getById(data.poId, db);
     if (!order) fail("Purchase order not found");
     if (String(order.vendor_id) !== String(data.vendorId)) fail("Purchase order vendor must match the vendor bill vendor");
     if (order.status !== "confirmed") fail("Only confirmed purchase orders can be linked to a vendor bill");
@@ -65,13 +67,146 @@ function transition(existing, next) {
 }
 async function getVendorBills() { return model.getAll(); }
 async function getVendorBill(billId) { const item = await model.getById(billId); if (!item) fail("Vendor bill not found", 404); return item; }
-async function createVendorBill(data) { data = normalizeBill(data); await validateBill(data); return model.create(data); }
+async function createVendorBill(data) {
+  data = normalizeBill(data);
+  if (data.status !== "draft") fail("Vendor bills must be created as draft");
+  await validateBill(data);
+  return model.create(data);
+}
 async function updateVendorBill(billId, data) {
   const existing = await getVendorBill(billId);
   data = normalizeBill({ ...data, poId: existing.po_id });
+  if (existing.status === "draft" && data.status === "confirmed") return confirmVendorBill(billId, data);
+  if (data.status === "confirmed") fail("Only draft vendor bills can be confirmed", 409);
   await validateBill(data); transition(existing.status, data.status);
   if (existing.status !== "draft" && (String(existing.vendor_id) !== String(data.vendorId) || String(existing.bill_date).slice(0, 10) !== data.billDate)) fail("Confirmed, paid, or cancelled vendor bills cannot change vendor or bill date");
   return model.update(billId, data);
+}
+
+async function confirmVendorBill(billId, data) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const bill = await model.getForUpdate(billId, client);
+    if (!bill) fail("Vendor bill not found", 404);
+    if (bill.status === "cancelled") fail("Cancelled vendor bills cannot be confirmed", 409);
+    if (bill.status !== "draft") fail("Only draft vendor bills can be confirmed", 409);
+    if (await journalEntryModel.getBySource("bill", billId, client)) {
+      fail("Vendor bill already has a journal entry", 409);
+    }
+
+    await validateBill(data, client);
+    const lines = await model.getLines(billId, client);
+    if (!lines.length) fail("Vendor bill must have at least one line before confirmation");
+    const purchaseJournal = (await client.query(
+      `SELECT j.id, j.default_account_id
+       FROM journals j
+       JOIN chart_of_accounts a ON a.id = j.default_account_id
+       WHERE j.journal_type = 'purchase' AND j.is_active = true AND a.is_active = true
+       ORDER BY j.id LIMIT 1`,
+    )).rows[0];
+    if (!purchaseJournal) fail("An active Purchase Journal with an active default account is required", 404);
+
+    const expenseTotals = new Map();
+    const taxTotals = new Map();
+    for (const line of lines) {
+      const account = await client.query(
+        "SELECT id, account_type, is_active FROM chart_of_accounts WHERE id = $1",
+        [line.account_id],
+      );
+      if (!account.rows[0] || !account.rows[0].is_active) fail("Vendor bill line account not found or inactive", 404);
+      if (!["expense", "asset"].includes(account.rows[0].account_type)) {
+        fail("Vendor bill line account must be an expense or asset account");
+      }
+      if (line.analytic_account_id && !await model.activeAnalytic(line.analytic_account_id, client)) {
+        fail("Vendor bill line analytic account not found or inactive", 404);
+      }
+      const expenseKey = `${line.account_id}:${line.analytic_account_id || ""}`;
+      expenseTotals.set(expenseKey, {
+        accountId: line.account_id,
+        analyticAccountId: line.analytic_account_id,
+        amount: Number(expenseTotals.get(expenseKey)?.amount || 0) + Number(line.line_subtotal),
+      });
+
+      let tax = null;
+      if (line.tax_id) {
+        tax = await model.activeTax(line.tax_id, client);
+        if (!tax) fail("Vendor bill line tax configuration or purchase tax account is inactive", 404);
+      }
+      if (Number(line.tax_amount) > 0) {
+        if (!tax) fail("Vendor bill line tax amount requires a tax configuration");
+        taxTotals.set(tax.purchase_tax_account_id, {
+          accountId: tax.purchase_tax_account_id,
+          amount: Number(taxTotals.get(tax.purchase_tax_account_id)?.amount || 0) + Number(line.tax_amount),
+        });
+      }
+    }
+
+    const refreshedBill = await model.refreshTotals(billId, client);
+    if (Number(refreshedBill.grand_total) <= 0) fail("Vendor bill total must be greater than zero before confirmation");
+    const entryData = {
+      entryNumber: `BILL-${bill.id}`,
+      journalId: purchaseJournal.id,
+      accountingDate: String(data.billDate),
+      reference: data.reference || bill.bill_number,
+      sourceType: "bill",
+      sourceId: bill.id,
+      status: "posted",
+      createdBy: data.createdBy,
+    };
+    await journalEntryService.validateEntry(entryData, client);
+    const entry = await journalEntryModel.create(entryData, client);
+
+    for (const expense of expenseTotals.values()) {
+      const debitLine = {
+        accountId: expense.accountId,
+        partnerId: data.vendorId,
+        analyticAccountId: expense.analyticAccountId,
+        description: `Vendor bill ${bill.bill_number}`,
+        debit: expense.amount,
+        credit: 0,
+      };
+      await journalEntryService.validateLine(debitLine, client);
+      await journalEntryModel.createLine(entry.id, debitLine, client);
+    }
+    for (const tax of taxTotals.values()) {
+      const taxLine = {
+        accountId: tax.accountId,
+        partnerId: data.vendorId,
+        analyticAccountId: null,
+        description: `Tax for vendor bill ${bill.bill_number}`,
+        debit: tax.amount,
+        credit: 0,
+      };
+      await journalEntryService.validateLine(taxLine, client);
+      await journalEntryModel.createLine(entry.id, taxLine, client);
+    }
+    const payableLine = {
+      accountId: purchaseJournal.default_account_id,
+      partnerId: data.vendorId,
+      analyticAccountId: null,
+      description: `Vendor bill ${bill.bill_number}`,
+      debit: 0,
+      credit: Number(refreshedBill.grand_total),
+    };
+    await journalEntryService.validateLine(payableLine, client);
+    await journalEntryModel.createLine(entry.id, payableLine, client);
+    await journalEntryService.assertBalanced(entry.id, client);
+
+    const confirmedBill = await model.update(billId, data, client);
+    await client.query("COMMIT");
+    return confirmedBill;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    if (error.code === "23505" && error.constraint === "journal_entries_entry_number_key") {
+      error.code = undefined;
+      error.statusCode = 409;
+      error.message = "A journal entry already uses the generated vendor bill entry number";
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 async function deleteVendorBill(billId) { const item = await getVendorBill(billId); if (item.status !== "draft") fail("Only draft vendor bills can be deleted"); return model.remove(billId); }
 async function editableBill(billId) { const bill = await getVendorBill(billId); if (bill.status !== "draft") fail("Lines can only be changed on draft vendor bills"); return bill; }

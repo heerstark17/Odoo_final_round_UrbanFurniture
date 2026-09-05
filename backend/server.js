@@ -15,6 +15,7 @@ const customerInvoiceRoutes = require("./routes/customerInvoiceRoutes");
 const purchaseOrderRoutes = require("./routes/purchaseOrderRoutes");
 const vendorBillRoutes = require("./routes/vendorBillRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const journalEntryRoutes = require("./routes/journalEntryRoutes");
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.use("/api/invoices", customerInvoiceRoutes);
 app.use("/api/purchase-orders", purchaseOrderRoutes);
 app.use("/api/vendor-bills", vendorBillRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/journal-entries", journalEntryRoutes);
 
 const PORT = process.env.PORT || 5000;
 

@@ -28,9 +28,9 @@ async function create(data) {
     )
   ).rows[0];
 }
-async function update(id, data) {
+async function update(id, data, db = pool) {
   return (
-    await pool.query(
+    await db.query(
       `UPDATE customer_invoices SET invoice_number = $1, customer_id = $2, invoice_date = $3, due_date = $4, reference = $5, status = $6, created_by = $7, updated_at = NOW() WHERE id = $8 RETURNING *`,
       [
         data.invoiceNumber,
@@ -53,9 +53,9 @@ async function remove(id) {
     )
   ).rows[0];
 }
-async function getLines(invoiceId) {
+async function getLines(invoiceId, db = pool) {
   return (
-    await pool.query(
+    await db.query(
       `${lineSelect} WHERE cil.invoice_id = $1 ORDER BY cil.id DESC`,
       [invoiceId],
     )
@@ -121,49 +121,57 @@ async function refreshTotals(invoiceId, db = pool) {
     )
   ).rows[0];
 }
-async function activeCustomer(id) {
+async function getForUpdate(id, db) {
   return (
-    await pool.query(
+    await db.query("SELECT * FROM customer_invoices WHERE id = $1 FOR UPDATE", [id])
+  ).rows[0];
+}
+async function activeCustomer(id, db = pool) {
+  return (
+    await db.query(
       "SELECT id FROM contacts WHERE id = $1 AND is_active = true AND contact_type IN ('customer', 'both')",
       [id],
     )
   ).rows[0];
 }
-async function activeProduct(id) {
+async function activeProduct(id, db = pool) {
   return (
-    await pool.query(
+    await db.query(
       "SELECT id FROM products WHERE id = $1 AND is_active = true",
       [id],
     )
   ).rows[0];
 }
-async function activeTax(id) {
+async function activeTax(id, db = pool) {
   return (
-    await pool.query(
-      "SELECT id, rate FROM taxes WHERE id = $1 AND is_active = true",
+    await db.query(
+      `SELECT t.id, t.rate, t.sales_tax_account_id
+       FROM taxes t
+       JOIN chart_of_accounts a ON a.id = t.sales_tax_account_id
+       WHERE t.id = $1 AND t.is_active = true AND a.is_active = true`,
       [id],
     )
   ).rows[0];
 }
-async function activeAnalytic(id) {
+async function activeAnalytic(id, db = pool) {
   return (
-    await pool.query(
+    await db.query(
       "SELECT id FROM analytic_accounts WHERE id = $1 AND is_active = true",
       [id],
     )
   ).rows[0];
 }
-async function activeAccount(id) {
+async function activeAccount(id, db = pool) {
   return (
-    await pool.query(
+    await db.query(
       "SELECT id FROM chart_of_accounts WHERE id = $1 AND is_active = true",
       [id],
     )
   ).rows[0];
 }
-async function activeUser(id) {
+async function activeUser(id, db = pool) {
   return (
-    await pool.query(
+    await db.query(
       "SELECT id FROM users WHERE id = $1 AND is_active = true",
       [id],
     )
@@ -181,6 +189,7 @@ module.exports = {
   updateLine,
   removeLine,
   refreshTotals,
+  getForUpdate,
   activeCustomer,
   activeProduct,
   activeTax,

@@ -1,6 +1,8 @@
 const { pool } = require("../config/db");
 const model = require("../models/customerInvoiceModel");
 const salesModel = require("../models/salesOrderModel");
+const journalEntryModel = require("../models/journalEntryModel");
+const journalEntryService = require("./journalEntryService");
 const STATUSES = ["draft", "confirmed", "paid", "cancelled"];
 function fail(message, statusCode = 400) {
   const error = new Error(message);
@@ -74,10 +76,10 @@ function normalizeLine(data = {}) {
     unitPrice: decimal(data.unitPrice, "Unit price", 0),
   };
 }
-async function validateInvoice(data) {
-  if (!(await model.activeCustomer(data.customerId)))
+async function validateInvoice(data, db = pool) {
+  if (!(await model.activeCustomer(data.customerId, db)))
     fail("Customer not found, inactive, or not a customer");
-  if (data.createdBy && !(await model.activeUser(data.createdBy)))
+  if (data.createdBy && !(await model.activeUser(data.createdBy, db)))
     fail("Created by user not found or inactive");
 }
 async function validateLine(data) {
@@ -112,6 +114,7 @@ async function getInvoice(invoiceId) {
 }
 async function createInvoice(data) {
   data = normalizeInvoice(data);
+  if (data.status !== "draft") fail("Customer invoices must be created as draft");
   await validateInvoice(data);
   const invoice = await model.create(data);
   return invoice;
@@ -119,6 +122,12 @@ async function createInvoice(data) {
 async function updateInvoice(invoiceId, data) {
   const existing = await getInvoice(invoiceId);
   data = normalizeInvoice({ ...data, soId: existing.so_id });
+  if (existing.status === "draft" && data.status === "confirmed") {
+    return confirmInvoice(invoiceId, data);
+  }
+  if (data.status === "confirmed") {
+    fail("Only draft invoices can be confirmed", 409);
+  }
   await validateInvoice(data);
   transition(existing.status, data.status);
   if (
@@ -130,6 +139,135 @@ async function updateInvoice(invoiceId, data) {
       "Confirmed, paid, or cancelled invoices cannot change customer or invoice date",
     );
   return model.update(invoiceId, data);
+}
+
+async function confirmInvoice(invoiceId, data) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const invoice = await model.getForUpdate(invoiceId, client);
+    if (!invoice) fail("Customer invoice not found", 404);
+    if (invoice.status === "cancelled") fail("Cancelled invoices cannot be confirmed", 409);
+    if (invoice.status !== "draft") fail("Only draft invoices can be confirmed", 409);
+    if (await journalEntryModel.getBySource("invoice", invoiceId, client)) {
+      fail("Customer invoice already has a journal entry", 409);
+    }
+
+    await validateInvoice(data, client);
+    const lines = await model.getLines(invoiceId, client);
+    if (!lines.length) fail("Customer invoice must have at least one line before confirmation");
+
+    const salesJournal = (await client.query(
+      `SELECT j.id, j.default_account_id
+       FROM journals j
+       JOIN chart_of_accounts a ON a.id = j.default_account_id
+       WHERE j.journal_type = 'sales' AND j.is_active = true AND a.is_active = true
+       ORDER BY j.id LIMIT 1`,
+    )).rows[0];
+    if (!salesJournal) fail("An active Sales Journal with an active default account is required", 404);
+
+    const incomeTotals = new Map();
+    const taxTotals = new Map();
+    for (const line of lines) {
+      const incomeAccount = await client.query(
+        "SELECT id, account_type, is_active FROM chart_of_accounts WHERE id = $1",
+        [line.account_id],
+      );
+      if (!incomeAccount.rows[0] || !incomeAccount.rows[0].is_active) {
+        fail("Invoice line account not found or inactive", 404);
+      }
+      if (incomeAccount.rows[0].account_type !== "income") {
+        fail("Customer invoice line account must be an income account");
+      }
+      if (line.analytic_account_id && !await model.activeAnalytic(line.analytic_account_id, client)) {
+        fail("Invoice line analytic account not found or inactive", 404);
+      }
+      const incomeKey = `${line.account_id}:${line.analytic_account_id || ""}`;
+      incomeTotals.set(incomeKey, {
+        accountId: line.account_id,
+        analyticAccountId: line.analytic_account_id,
+        amount: Number(incomeTotals.get(incomeKey)?.amount || 0) + Number(line.line_subtotal),
+      });
+
+      let tax = null;
+      if (line.tax_id) {
+        tax = await model.activeTax(line.tax_id, client);
+        if (!tax) fail("Invoice line tax configuration or sales tax account is inactive", 404);
+      }
+      if (Number(line.tax_amount) > 0) {
+        if (!tax) fail("Invoice line tax amount requires a tax configuration");
+        taxTotals.set(tax.sales_tax_account_id, {
+          accountId: tax.sales_tax_account_id,
+          amount: Number(taxTotals.get(tax.sales_tax_account_id)?.amount || 0) + Number(line.tax_amount),
+        });
+      }
+    }
+
+    const refreshedInvoice = await model.refreshTotals(invoiceId, client);
+    if (Number(refreshedInvoice.grand_total) <= 0) fail("Customer invoice total must be greater than zero before confirmation");
+    const entryData = {
+      entryNumber: `INV-${invoice.id}`,
+      journalId: salesJournal.id,
+      accountingDate: String(data.invoiceDate),
+      reference: data.reference || invoice.invoice_number,
+      sourceType: "invoice",
+      sourceId: invoice.id,
+      status: "posted",
+      createdBy: data.createdBy,
+    };
+    await journalEntryService.validateEntry(entryData, client);
+    const entry = await journalEntryModel.create(entryData, client);
+
+    const debitLine = {
+      accountId: salesJournal.default_account_id,
+      partnerId: data.customerId,
+      analyticAccountId: null,
+      description: `Invoice ${invoice.invoice_number}`,
+      debit: Number(refreshedInvoice.grand_total),
+      credit: 0,
+    };
+    await journalEntryService.validateLine(debitLine, client);
+    await journalEntryModel.createLine(entry.id, debitLine, client);
+    for (const income of incomeTotals.values()) {
+      const creditLine = {
+        accountId: income.accountId,
+        partnerId: data.customerId,
+        analyticAccountId: income.analyticAccountId,
+        description: `Invoice ${invoice.invoice_number}`,
+        debit: 0,
+        credit: income.amount,
+      };
+      await journalEntryService.validateLine(creditLine, client);
+      await journalEntryModel.createLine(entry.id, creditLine, client);
+    }
+    for (const tax of taxTotals.values()) {
+      const taxLine = {
+        accountId: tax.accountId,
+        partnerId: data.customerId,
+        analyticAccountId: null,
+        description: `Tax for invoice ${invoice.invoice_number}`,
+        debit: 0,
+        credit: tax.amount,
+      };
+      await journalEntryService.validateLine(taxLine, client);
+      await journalEntryModel.createLine(entry.id, taxLine, client);
+    }
+    await journalEntryService.assertBalanced(entry.id, client);
+
+    const confirmedInvoice = await model.update(invoiceId, data, client);
+    await client.query("COMMIT");
+    return confirmedInvoice;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    if (error.code === "23505" && error.constraint === "journal_entries_entry_number_key") {
+      error.code = undefined;
+      error.statusCode = 409;
+      error.message = "A journal entry already uses the generated invoice entry number";
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 async function deleteInvoice(invoiceId) {
   const item = await getInvoice(invoiceId);

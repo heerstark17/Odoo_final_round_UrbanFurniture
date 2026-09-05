@@ -1,5 +1,7 @@
 const { pool } = require("../config/db");
 const model = require("../models/paymentModel");
+const journalEntryModel = require("../models/journalEntryModel");
+const journalEntryService = require("./journalEntryService");
 
 const STATUSES = ["draft", "posted", "cancelled"];
 const METHODS = ["cash", "bank"];
@@ -148,10 +150,14 @@ async function createPayment(data) {
     await client.query("BEGIN");
     await validatePayment(data, null, client);
     const payment = await model.create(data, client);
+    if (isPostedPayment(data)) {
+      await createPaymentJournalEntry(payment, data, client);
+    }
     await client.query("COMMIT");
     return payment;
   } catch (error) {
     await client.query("ROLLBACK");
+    translateJournalEntryConflict(error);
     throw error;
   } finally {
     client.release();
@@ -159,26 +165,119 @@ async function createPayment(data) {
 }
 
 async function updatePayment(paymentId, data) {
-  const existing = await getPayment(paymentId);
   data = normalizePayment(data);
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
+    const existing = await model.getForUpdate(paymentId, client);
+    if (!existing) fail("Payment not found", 404);
+    if (isPostedPayment(existing)) {
+      fail("Posted payments cannot be modified", 409);
+    }
     await validatePayment(data, existing.id, client);
     const payment = await model.update(paymentId, data, client);
+    if (isPostedPayment(data)) {
+      if (await journalEntryModel.getBySource("payment", payment.id, client)) {
+        fail("Payment already has a journal entry", 409);
+      }
+      await createPaymentJournalEntry(payment, data, client);
+    }
     await client.query("COMMIT");
     return payment;
   } catch (error) {
     await client.query("ROLLBACK");
+    translateJournalEntryConflict(error);
     throw error;
   } finally {
     client.release();
   }
 }
 
+function isPostedPayment(data) {
+  return data.status === "posted" && (
+    (data.invoiceId ?? data.invoice_id) != null ||
+    (data.billId ?? data.bill_id) != null
+  );
+}
+
+function translateJournalEntryConflict(error) {
+  if (error.code === "23505" && error.constraint === "journal_entries_entry_number_key") {
+    error.code = undefined;
+    error.statusCode = 409;
+    error.message = "A journal entry already uses the generated payment entry number";
+  }
+}
+
+async function createPaymentJournalEntry(payment, data, client) {
+  if (await journalEntryModel.getBySource("payment", payment.id, client)) {
+    fail("Payment already has a journal entry", 409);
+  }
+  const paymentJournal = (await client.query(
+    `SELECT j.id, j.default_account_id
+     FROM journals j
+     JOIN chart_of_accounts a ON a.id = j.default_account_id
+     WHERE j.journal_type = $1 AND j.is_active = true AND a.is_active = true
+     ORDER BY j.id LIMIT 1`,
+    [data.method],
+  )).rows[0];
+  if (!paymentJournal) fail(`An active ${data.method} journal with an active default account is required`, 404);
+
+  const counterpartJournalType = data.direction === "in" ? "sales" : "purchase";
+  const counterpartJournal = (await client.query(
+    `SELECT j.default_account_id
+     FROM journals j
+     JOIN chart_of_accounts a ON a.id = j.default_account_id
+     WHERE j.journal_type = $1 AND j.is_active = true AND a.is_active = true
+     ORDER BY j.id LIMIT 1`,
+    [counterpartJournalType],
+  )).rows[0];
+  if (!counterpartJournal) {
+    fail(`An active ${data.direction === "in" ? "Sales" : "Purchase"} Journal with an active default account is required`, 404);
+  }
+
+  const entryData = {
+    entryNumber: `PAY-${payment.id}`,
+    journalId: paymentJournal.id,
+    accountingDate: data.paymentDate,
+    reference: data.reference || payment.payment_number,
+    sourceType: "payment",
+    sourceId: payment.id,
+    status: "posted",
+    createdBy: data.createdBy,
+  };
+  await journalEntryService.validateEntry(entryData, client);
+  const entry = await journalEntryModel.create(entryData, client);
+  const isCustomerPayment = data.direction === "in";
+  const partnerId = isCustomerPayment ? data.customerId : data.vendorId;
+  const paymentLine = {
+    accountId: paymentJournal.default_account_id,
+    partnerId,
+    analyticAccountId: null,
+    description: `${isCustomerPayment ? "Customer" : "Vendor"} payment ${payment.payment_number}`,
+    debit: isCustomerPayment ? data.amount : 0,
+    credit: isCustomerPayment ? 0 : data.amount,
+  };
+  const counterpartLine = {
+    accountId: counterpartJournal.default_account_id,
+    partnerId,
+    analyticAccountId: null,
+    description: `${isCustomerPayment ? "Customer" : "Vendor"} payment ${payment.payment_number}`,
+    debit: isCustomerPayment ? 0 : data.amount,
+    credit: isCustomerPayment ? data.amount : 0,
+  };
+  await journalEntryService.validateLine(paymentLine, client);
+  await journalEntryModel.createLine(entry.id, paymentLine, client);
+  await journalEntryService.validateLine(counterpartLine, client);
+  await journalEntryModel.createLine(entry.id, counterpartLine, client);
+  await journalEntryService.assertBalanced(entry.id, client);
+}
+
 async function deletePayment(paymentId) {
-  await getPayment(paymentId);
+  const payment = await getPayment(paymentId);
+  if (isPostedPayment(payment)) {
+    fail("Posted payments cannot be deleted", 409);
+  }
   return model.remove(paymentId);
 }
 
