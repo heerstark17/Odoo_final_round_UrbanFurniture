@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Office Chair",
+      "type": "goods",
+      "category": "Office Furniture",
+      "sales_price": 4500,
+      "cost": 3000
+    },
+    {
+      "id": 2,
+      "name": "Wooden Table",
+      "type": "goods",
+      "category": "Tables",
+      "sales_price": 8500,
+      "cost": 6000
+    },
+    {
+      "id": 3,
+      "name": "Furniture Assembly",
+      "type": "service",
+      "category": "Services",
+      "sales_price": 1000,
+      "cost": 500
+    }
+  ]
+}

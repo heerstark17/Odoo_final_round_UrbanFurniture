@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "journal_name": "Sales Journal",
+      "type": "sales",
+      "default_account_id": 5
+    },
+    {
+      "id": 2,
+      "journal_name": "Purchase Journal",
+      "type": "purchase",
+      "default_account_id": 6
+    },
+    {
+      "id": 3,
+      "journal_name": "Bank Journal",
+      "type": "bank",
+      "default_account_id": 1
+    },
+    {
+      "id": 4,
+      "journal_name": "Cash Journal",
+      "type": "cash",
+      "default_account_id": 2
+    }
+  ]
+}

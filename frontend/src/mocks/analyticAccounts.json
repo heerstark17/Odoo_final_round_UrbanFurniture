@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Furniture Sales",
+      "type": "income",
+      "status": "active"
+    },
+    {
+      "id": 2,
+      "name": "Furniture Purchases",
+      "type": "expense",
+      "status": "active"
+    },
+    {
+      "id": 3,
+      "name": "Office Operations",
+      "type": "expense",
+      "status": "active"
+    }
+  ]
+}

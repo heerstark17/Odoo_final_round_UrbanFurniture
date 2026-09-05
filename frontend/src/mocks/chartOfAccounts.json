@@ -1,0 +1,53 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "account_name": "Bank",
+      "type": "bank",
+      "status": "active"
+    },
+    {
+      "id": 2,
+      "account_name": "Cash",
+      "type": "cash",
+      "status": "active"
+    },
+    {
+      "id": 3,
+      "account_name": "Debtors",
+      "type": "asset",
+      "status": "active"
+    },
+    {
+      "id": 4,
+      "account_name": "Creditors",
+      "type": "liability",
+      "status": "active"
+    },
+    {
+      "id": 5,
+      "account_name": "Sales Income",
+      "type": "income",
+      "status": "active"
+    },
+    {
+      "id": 6,
+      "account_name": "Purchase Expense",
+      "type": "expense",
+      "status": "active"
+    },
+    {
+      "id": 7,
+      "account_name": "Capital",
+      "type": "capital",
+      "status": "active"
+    },
+    {
+      "id": 8,
+      "account_name": "Other Expense",
+      "type": "other_expense",
+      "status": "active"
+    }
+  ]
+}

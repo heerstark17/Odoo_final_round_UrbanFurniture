@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Admin User",
+      "login_id": "admin01",
+      "email": "admin@urbanfurniture.com",
+      "role": "admin"
+    },
+    {
+      "id": 2,
+      "name": "Accountant User",
+      "login_id": "account01",
+      "email": "accountant@urbanfurniture.com",
+      "role": "accountant"
+    }
+  ]
+}
