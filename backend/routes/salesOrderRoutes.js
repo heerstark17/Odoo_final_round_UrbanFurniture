@@ -1,0 +1,15 @@
+const express = require("express");
+const controller = require("../controllers/salesOrderController");
+const router = express.Router();
+router.get("/", controller.list);
+router.post("/", controller.create);
+router.get("/:salesOrderId/lines", controller.listLines);
+router.post("/:salesOrderId/lines", controller.createLine);
+router.get("/:salesOrderId/lines/:id", controller.getLine);
+router.put("/:salesOrderId/lines/:id", controller.updateLine);
+router.delete("/:salesOrderId/lines/:id", controller.removeLine);
+router.post("/:id/convert-to-invoice", controller.convertToInvoice);
+router.get("/:id", controller.get);
+router.put("/:id", controller.update);
+router.delete("/:id", controller.remove);
+module.exports = router;

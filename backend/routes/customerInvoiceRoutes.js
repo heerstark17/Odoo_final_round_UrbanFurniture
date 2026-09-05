@@ -1,0 +1,14 @@
+const express = require("express");
+const controller = require("../controllers/customerInvoiceController");
+const router = express.Router();
+router.get("/", controller.list);
+router.post("/", controller.create);
+router.get("/:invoiceId/lines", controller.listLines);
+router.post("/:invoiceId/lines", controller.createLine);
+router.get("/:invoiceId/lines/:id", controller.getLine);
+router.put("/:invoiceId/lines/:id", controller.updateLine);
+router.delete("/:invoiceId/lines/:id", controller.removeLine);
+router.get("/:id", controller.get);
+router.put("/:id", controller.update);
+router.delete("/:id", controller.remove);
+module.exports = router;

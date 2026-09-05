@@ -1,0 +1,174 @@
+const model = require("../models/salesOrderModel");
+const invoiceService = require("./customerInvoiceService");
+
+const STATUSES = ["draft", "confirmed", "cancelled"];
+function fail(message, statusCode = 400) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  throw error;
+}
+function id(value, label, required = false) {
+  if (value === undefined || value === null || value === "") {
+    if (required) fail(`${label} is required`);
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0)
+    fail(`${label} must be a valid ID`);
+  return parsed;
+}
+function date(value, label) {
+  if (!value || Number.isNaN(Date.parse(value)))
+    fail(`${label} is required and must be a valid date`);
+  return String(value).slice(0, 10);
+}
+function decimal(value, label, minimum) {
+  if (
+    value === undefined ||
+    value === null ||
+    value === "" ||
+    !Number.isFinite(Number(value)) ||
+    Number(value) < minimum
+  )
+    fail(
+      `${label} must be ${minimum === 0 ? "zero or greater" : "greater than zero"}`,
+    );
+  return Number(value);
+}
+function normalizeOrder(data = {}) {
+  const status = String(data.status ?? "draft").toLowerCase();
+  if (!STATUSES.includes(status))
+    fail("Status must be draft, confirmed, or cancelled");
+  if (typeof data.soNumber !== "string" || !data.soNumber.trim())
+    fail("Sales order number is required");
+  return {
+    soNumber: data.soNumber.trim(),
+    customerId: id(data.customerId, "Customer", true),
+    orderDate: date(
+      data.orderDate ?? new Date().toISOString().slice(0, 10),
+      "Order date",
+    ),
+    status,
+    notes: data.notes == null ? null : String(data.notes).trim() || null,
+    createdBy: id(data.createdBy, "Created by"),
+  };
+}
+function normalizeLine(data = {}) {
+  return {
+    productId: id(data.productId, "Product", true),
+    analyticAccountId: id(data.analyticAccountId, "Analytic account"),
+    accountId: id(data.accountId, "Account"),
+    taxId: id(data.taxId, "Tax"),
+    quantity: decimal(data.quantity, "Quantity", 0.0000001),
+    unitPrice: decimal(data.unitPrice, "Unit price", 0),
+  };
+}
+async function validateOrder(data) {
+  if (!(await model.activeCustomer(data.customerId)))
+    fail("Customer not found, inactive, or not a customer");
+  if (data.createdBy && !(await model.activeUser(data.createdBy)))
+    fail("Created by user not found or inactive");
+}
+async function validateLine(data) {
+  if (!(await model.activeProduct(data.productId)))
+    fail("Product not found or inactive");
+  if (data.taxId) {
+    const tax = await model.activeTax(data.taxId);
+    if (!tax) fail("Tax not found or inactive");
+    data.taxRate = Number(tax.rate);
+  } else data.taxRate = 0;
+  if (
+    data.analyticAccountId &&
+    !(await model.activeAnalytic(data.analyticAccountId))
+  )
+    fail("Analytic account not found or inactive");
+  if (data.accountId && !(await model.activeAccount(data.accountId)))
+    fail("Account not found or inactive");
+}
+function transition(existing, next) {
+  if (existing === next) return;
+  if (existing === "draft" && ["confirmed", "cancelled"].includes(next)) return;
+  fail(`Invalid sales order status transition from ${existing} to ${next}`);
+}
+async function getSalesOrders() {
+  return model.getAll();
+}
+async function getSalesOrder(id) {
+  const item = await model.getById(id);
+  if (!item) fail("Sales order not found", 404);
+  return item;
+}
+async function createSalesOrder(data) {
+  data = normalizeOrder(data);
+  await validateOrder(data);
+  return model.create(data);
+}
+async function updateSalesOrder(orderId, data) {
+  const existing = await getSalesOrder(orderId);
+  data = normalizeOrder(data);
+  await validateOrder(data);
+  transition(existing.status, data.status);
+  if (
+    existing.status !== "draft" &&
+    (existing.customer_id !== String(data.customerId) ||
+      existing.order_date.toISOString?.().slice(0, 10) !== data.orderDate)
+  )
+    fail("Confirmed or cancelled sales orders cannot change customer or date");
+  return model.update(orderId, data);
+}
+async function deleteSalesOrder(id) {
+  const existing = await getSalesOrder(id);
+  if (existing.status !== "draft")
+    fail("Only draft sales orders can be deleted");
+  return model.remove(id);
+}
+async function editableOrder(id) {
+  const order = await getSalesOrder(id);
+  if (order.status !== "draft")
+    fail("Lines can only be changed on draft sales orders");
+  return order;
+}
+async function getLines(orderId) {
+  await getSalesOrder(orderId);
+  return model.getLines(orderId);
+}
+async function getLine(orderId, lineId) {
+  await getSalesOrder(orderId);
+  const line = await model.getLine(orderId, lineId);
+  if (!line) fail("Sales order line not found for this sales order", 404);
+  return line;
+}
+async function createLine(orderId, data) {
+  await editableOrder(orderId);
+  data = normalizeLine(data);
+  await validateLine(data);
+  return model.createLine(orderId, data);
+}
+async function updateLine(orderId, lineId, data) {
+  await editableOrder(orderId);
+  await getLine(orderId, lineId);
+  data = normalizeLine(data);
+  await validateLine(data);
+  return model.updateLine(orderId, lineId, data);
+}
+async function deleteLine(orderId, lineId) {
+  await editableOrder(orderId);
+  await getLine(orderId, lineId);
+  return model.removeLine(orderId, lineId);
+}
+async function convertToInvoice(orderId) {
+  return invoiceService.createFromSalesOrder(orderId);
+}
+module.exports = {
+  getSalesOrders,
+  getSalesOrder,
+  createSalesOrder,
+  updateSalesOrder,
+  deleteSalesOrder,
+  getLines,
+  getLine,
+  createLine,
+  updateLine,
+  deleteLine,
+  convertToInvoice,
+};

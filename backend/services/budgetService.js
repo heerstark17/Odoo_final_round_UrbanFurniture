@@ -1,11 +1,72 @@
 const model = require("../models/budgetModel");
 const STATUSES = ["draft", "confirmed", "revised", "cancelled"];
-function optionalId(value, label) { if (value === undefined || value === null || value === "") return null; const id = Number(value); if (!Number.isInteger(id) || id <= 0) throw new Error(`${label} must be a valid ID`); return id; }
-function normalise(data = {}) { if (typeof data.budgetName !== "string" || !data.budgetName.trim()) throw new Error("Budget name is required"); if (!data.startDate || !data.endDate) throw new Error("Start date and end date are required"); if (new Date(data.endDate) < new Date(data.startDate)) throw new Error("End date must be on or after start date"); const status = data.status === undefined ? "draft" : data.status; if (!STATUSES.includes(status)) throw new Error("Status must be draft, confirmed, revised, or cancelled"); return { budgetName: data.budgetName.trim(), startDate: data.startDate, endDate: data.endDate, status, responsibleUserId: optionalId(data.responsibleUserId, "Responsible user"), createdBy: optionalId(data.createdBy, "Created by"), revisedFromId: optionalId(data.revisedFromId, "Revised from") }; }
-async function getBudgets() { return model.getAll(); }
-async function getBudget(id) { const item = await model.getById(id); if (!item) throw new Error("Budget not found"); return item; }
-async function validate(data, id) { if (data.responsibleUserId && !await model.userExists(data.responsibleUserId)) throw new Error("Responsible user not found"); if (data.createdBy && !await model.userExists(data.createdBy)) throw new Error("Created by user not found"); if (data.revisedFromId === id) throw new Error("Budget cannot reference itself as revised from"); if (data.revisedFromId && !await model.getById(data.revisedFromId)) throw new Error("Revised from budget not found"); }
-async function createBudget(data) { data = normalise(data); await validate(data, null); return model.create(data); }
-async function updateBudget(id, data) { await getBudget(id); data = normalise(data); await validate(data, id); return model.update(id, data); }
-async function deleteBudget(id) { await getBudget(id); return model.remove(id); }
-module.exports = { getBudgets, getBudget, createBudget, updateBudget, deleteBudget };
+function optionalId(value, label) {
+  if (value === undefined || value === null || value === "") return null;
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0)
+    throw new Error(`${label} must be a valid ID`);
+  return id;
+}
+function normalise(data = {}) {
+  if (typeof data.budgetName !== "string" || !data.budgetName.trim())
+    throw new Error("Budget name is required");
+  if (!data.startDate || !data.endDate)
+    throw new Error("Start date and end date are required");
+  if (new Date(data.endDate) < new Date(data.startDate))
+    throw new Error("End date must be on or after start date");
+  const status = data.status === undefined ? "draft" : data.status;
+  if (!STATUSES.includes(status))
+    throw new Error("Status must be draft, confirmed, revised, or cancelled");
+  return {
+    budgetName: data.budgetName.trim(),
+    startDate: data.startDate,
+    endDate: data.endDate,
+    status,
+    responsibleUserId: optionalId(data.responsibleUserId, "Responsible user"),
+    createdBy: optionalId(data.createdBy, "Created by"),
+    revisedFromId: optionalId(data.revisedFromId, "Revised from"),
+  };
+}
+async function getBudgets() {
+  return model.getAll();
+}
+async function getBudget(id) {
+  const item = await model.getById(id);
+  if (!item) throw new Error("Budget not found");
+  return item;
+}
+async function validate(data, id) {
+  if (
+    data.responsibleUserId &&
+    !(await model.userExists(data.responsibleUserId))
+  )
+    throw new Error("Responsible user not found");
+  if (data.createdBy && !(await model.userExists(data.createdBy)))
+    throw new Error("Created by user not found");
+  if (data.revisedFromId === id)
+    throw new Error("Budget cannot reference itself as revised from");
+  if (data.revisedFromId && !(await model.getById(data.revisedFromId)))
+    throw new Error("Revised from budget not found");
+}
+async function createBudget(data) {
+  data = normalise(data);
+  await validate(data, null);
+  return model.create(data);
+}
+async function updateBudget(id, data) {
+  await getBudget(id);
+  data = normalise(data);
+  await validate(data, id);
+  return model.update(id, data);
+}
+async function deleteBudget(id) {
+  await getBudget(id);
+  return model.remove(id);
+}
+module.exports = {
+  getBudgets,
+  getBudget,
+  createBudget,
+  updateBudget,
+  deleteBudget,
+};
