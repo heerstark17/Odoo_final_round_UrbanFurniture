@@ -9,7 +9,20 @@ const blankLine = () => ({
   credit: "",
 });
 
-export default function JournalEntries() {
+export default function JournalEntries() 
+{
+  const [formValues, setFormValues] = useState({
+  journal: "",
+  date: "",
+  reference: "",
+  description: "",
+});
+function handleFieldChange(field, value) {
+  setFormValues((prev) => ({
+    ...prev,
+    [field]: value,
+  }));
+}
   const [entries, setEntries] = useState([]);
   const [masters, setMasters] = useState({
     accounts: [],
@@ -107,21 +120,23 @@ export default function JournalEntries() {
       {showForm && (
         <form className="card card-body shadow-sm mb-4" onSubmit={submit}>
           <div className="row g-3">
-            <div className="col-md-3">
-              <label className="form-label">Journal</label>
-              <select
-                className="form-select"
-                value={form.journalId}
-                onChange={(e) => setForm({ ...form, journalId: e.target.value })}
-              >
-                <option value="">Select journal</option>
-                {masters.journals.map((journal) => (
-                  <option key={journal.id || journal._id} value={journal.id || journal._id}>
-                    {journal.name || journal.journalName}
-                  </option>
-                ))}
-              </select>
-            </div>
+      <div className="mb-3">
+  <label className="form-label">Journal</label>
+
+  <select
+    className="form-select"
+    style={{ width: "100%" }}
+    value={formValues.journal}
+    onChange={(e) => handleFieldChange("journal", e.target.value)}
+  >
+    <option value="">Select journal</option>
+    <option value="Sales Journal">Sales Journal</option>
+    <option value="Purchase Journal">Purchase Journal</option>
+    <option value="Cash Journal">Cash Journal</option>
+    <option value="Bank Journal">Bank Journal</option>
+    <option value="General Journal">General Journal</option>
+  </select>
+</div>
 
             <div className="col-md-3">
               <label className="form-label">Date</label>

@@ -4,10 +4,10 @@ import Sidebar from "./Sidebar";
 function Layout({ children }) {
   return (
     <div className="d-flex" style={{ height: "100vh", overflow: "hidden" }}>
-      {/* Sidebar manages its own width/height/scroll internally */}
+      
       <Sidebar />
 
-      {/* Main column: Navbar on top, scrollable content below */}
+      
       <div className="d-flex flex-column flex-grow-1" style={{ minWidth: 0 }}>
         <Navbar />
 
