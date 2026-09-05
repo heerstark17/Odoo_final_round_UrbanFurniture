@@ -404,7 +404,7 @@ SELECT
         ELSE 'both'
     END,
     format('contact%3$s@example.com', series.number, '', to_char(series.number, 'FM000')),
-    format('90000%05s', series.number),
+    '90000' || lpad(series.number::text, 5, '0'),
     'Ahmedabad',
     'Gujarat',
     format('%06s', 380000 + series.number),
