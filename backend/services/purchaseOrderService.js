@@ -78,9 +78,9 @@ function transition(existing, next) {
   fail(`Invalid purchase order status transition from ${existing} to ${next}`);
 }
 
-async function getPurchaseOrders() { return model.getAll(); }
-async function getPurchaseOrder(orderId) {
-  const item = await model.getById(orderId);
+async function getPurchaseOrders(contactId) { return model.getAll(contactId); }
+async function getPurchaseOrder(orderId, contactId) {
+  const item = contactId ? await model.getByIdForContact(orderId, contactId) : await model.getById(orderId);
   if (!item) fail("Purchase order not found", 404);
   return item;
 }
@@ -109,9 +109,9 @@ async function editableOrder(orderId) {
   if (item.status !== "draft") fail("Lines can only be changed on draft purchase orders");
   return item;
 }
-async function getLines(orderId) { await getPurchaseOrder(orderId); return model.getLines(orderId); }
-async function getLine(orderId, lineId) {
-  await getPurchaseOrder(orderId);
+async function getLines(orderId, contactId) { await getPurchaseOrder(orderId, contactId); return model.getLines(orderId); }
+async function getLine(orderId, lineId, contactId) {
+  await getPurchaseOrder(orderId, contactId);
   const line = await model.getLine(orderId, lineId);
   if (!line) fail("Purchase order line not found for this purchase order", 404);
   return line;

@@ -8,13 +8,20 @@ const lineSelect = `SELECT sol.*, p.name AS product_name, t.name AS tax_name
     FROM sales_order_lines sol JOIN products p ON p.id = sol.product_id
     LEFT JOIN taxes t ON t.id = sol.tax_id`;
 
-async function getAll() {
-  return (await pool.query(`${orderSelect} GROUP BY so.id ORDER BY so.id DESC`))
-    .rows;
+async function getAll(contactId = null) {
+  return (await pool.query(
+    `${orderSelect} ${contactId ? "WHERE so.customer_id = $1" : ""} GROUP BY so.id ORDER BY so.id DESC`,
+    contactId ? [contactId] : [],
+  )).rows;
 }
 async function getById(id, db = pool) {
   return (
     await db.query(`${orderSelect} WHERE so.id = $1 GROUP BY so.id`, [id])
+  ).rows[0];
+}
+async function getByIdForContact(id, contactId) {
+  return (
+    await pool.query(`${orderSelect} WHERE so.id = $1 AND so.customer_id = $2 GROUP BY so.id`, [id, contactId])
   ).rows[0];
 }
 async function create(data) {
@@ -163,6 +170,7 @@ async function activeUser(id) {
 module.exports = {
   getAll,
   getById,
+  getByIdForContact,
   create,
   update,
   remove,

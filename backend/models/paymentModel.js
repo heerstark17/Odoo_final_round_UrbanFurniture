@@ -11,9 +11,15 @@ const paymentSelect = `SELECT p.*, customer.name AS customer_name,
 async function getAll() {
   return (await pool.query(`${paymentSelect} ORDER BY p.id DESC`)).rows;
 }
+async function getAllForContact(contactId) {
+  return (await pool.query(`${paymentSelect} WHERE p.customer_id = $1 OR p.vendor_id = $1 ORDER BY p.id DESC`, [contactId])).rows;
+}
 
 async function getById(id, db = pool) {
   return (await db.query(`${paymentSelect} WHERE p.id = $1`, [id])).rows[0];
+}
+async function getByIdForContact(id, contactId) {
+  return (await pool.query(`${paymentSelect} WHERE p.id = $1 AND (p.customer_id = $2 OR p.vendor_id = $2)`, [id, contactId])).rows[0];
 }
 
 async function getForUpdate(id, db) {
@@ -123,7 +129,9 @@ async function activeUser(id, db = pool) {
 
 module.exports = {
   getAll,
+  getAllForContact,
   getById,
+  getByIdForContact,
   getForUpdate,
   create,
   update,

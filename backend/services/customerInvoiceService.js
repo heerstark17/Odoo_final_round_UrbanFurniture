@@ -104,11 +104,16 @@ function transition(existing, next) {
   if (existing === "confirmed" && ["paid", "cancelled"].includes(next)) return;
   fail(`Invalid invoice status transition from ${existing} to ${next}`);
 }
-async function getInvoices() {
-  return model.getAll();
+async function getInvoices(contactId) {
+  return model.getAll(contactId);
 }
-async function getInvoice(invoiceId) {
-  const item = await model.getById(invoiceId);
+async function getInvoice(invoiceId, contactId) {
+  const item = contactId ? await model.getByIdForContact(invoiceId, contactId) : await model.getById(invoiceId);
+  if (!item) fail("Customer invoice not found", 404);
+  return item;
+}
+async function getInvoiceForPdf(invoiceId, contactId) {
+  const item = contactId ? await model.getForPdfForContact(invoiceId, contactId) : await model.getForPdf(invoiceId);
   if (!item) fail("Customer invoice not found", 404);
   return item;
 }
@@ -280,12 +285,12 @@ async function editableInvoice(invoiceId) {
     fail("Lines can only be changed on draft invoices");
   return invoice;
 }
-async function getLines(invoiceId) {
-  await getInvoice(invoiceId);
+async function getLines(invoiceId, contactId) {
+  await getInvoice(invoiceId, contactId);
   return model.getLines(invoiceId);
 }
-async function getLine(invoiceId, lineId) {
-  await getInvoice(invoiceId);
+async function getLine(invoiceId, lineId, contactId) {
+  await getInvoice(invoiceId, contactId);
   const line = await model.getLine(invoiceId, lineId);
   if (!line) fail("Invoice line not found for this invoice", 404);
   return line;
@@ -373,6 +378,7 @@ async function createFromSalesOrder(orderId) {
 module.exports = {
   getInvoices,
   getInvoice,
+  getInvoiceForPdf,
   createInvoice,
   updateInvoice,
   deleteInvoice,

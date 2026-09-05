@@ -132,12 +132,12 @@ async function validatePayment(data, excludePaymentId, db) {
   }
 }
 
-async function getPayments() {
-  return model.getAll();
+async function getPayments(contactId) {
+  return contactId ? model.getAllForContact(contactId) : model.getAll();
 }
 
-async function getPayment(paymentId) {
-  const payment = await model.getById(paymentId);
+async function getPayment(paymentId, contactId) {
+  const payment = contactId ? await model.getByIdForContact(paymentId, contactId) : await model.getById(paymentId);
   if (!payment) fail("Payment not found", 404);
   return payment;
 }

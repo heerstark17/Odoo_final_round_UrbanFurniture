@@ -21,7 +21,7 @@ function writeError(res, error) {
 }
 async function list(req, res) {
   try {
-    res.json(await service.getSalesOrders());
+    res.json(await service.getSalesOrders(req.user.role === "contact" ? req.user.contact_id : null));
   } catch (error) {
     writeError(res, error);
   }
@@ -29,7 +29,7 @@ async function list(req, res) {
 async function get(req, res) {
   try {
     res.json(
-      await service.getSalesOrder(parseId(req.params.id, "sales order")),
+      await service.getSalesOrder(parseId(req.params.id, "sales order"), req.user.role === "contact" ? req.user.contact_id : null),
     );
   } catch (error) {
     writeError(res, error);
@@ -69,7 +69,7 @@ async function remove(req, res) {
 async function listLines(req, res) {
   try {
     res.json(
-      await service.getLines(parseId(req.params.salesOrderId, "sales order")),
+      await service.getLines(parseId(req.params.salesOrderId, "sales order"), req.user.role === "contact" ? req.user.contact_id : null),
     );
   } catch (error) {
     writeError(res, error);
@@ -81,6 +81,7 @@ async function getLine(req, res) {
       await service.getLine(
         parseId(req.params.salesOrderId, "sales order"),
         parseId(req.params.id, "sales order line"),
+        req.user.role === "contact" ? req.user.contact_id : null,
       ),
     );
   } catch (error) {

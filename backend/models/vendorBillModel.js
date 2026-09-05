@@ -5,12 +5,39 @@ const lineSelect = `SELECT vbl.*, p.name AS product_name, t.name AS tax_name
     JOIN products p ON p.id = vbl.product_id
     LEFT JOIN taxes t ON t.id = vbl.tax_id`;
 
-async function getAll() {
-  return (await pool.query("SELECT * FROM vendor_bills ORDER BY id DESC")).rows;
+async function getAll(contactId = null) {
+  return (await pool.query(
+    `SELECT * FROM vendor_bills ${contactId ? "WHERE vendor_id = $1" : ""} ORDER BY id DESC`,
+    contactId ? [contactId] : [],
+  )).rows;
 }
 
 async function getById(id, db = pool) {
   return (await db.query("SELECT * FROM vendor_bills WHERE id = $1", [id])).rows[0];
+}
+async function getByIdForContact(id, contactId) {
+  return (await pool.query(
+    "SELECT * FROM vendor_bills WHERE id = $1 AND vendor_id = $2",
+    [id, contactId],
+  )).rows[0];
+}
+async function getForPdf(id, db = pool) {
+  return (await db.query(
+    `SELECT vb.*, c.name AS vendor_name
+     FROM vendor_bills vb
+     JOIN contacts c ON c.id = vb.vendor_id
+     WHERE vb.id = $1`,
+    [id],
+  )).rows[0];
+}
+async function getForPdfForContact(id, contactId) {
+  return (await pool.query(
+    `SELECT vb.*, c.name AS vendor_name
+     FROM vendor_bills vb
+     JOIN contacts c ON c.id = vb.vendor_id
+     WHERE vb.id = $1 AND vb.vendor_id = $2`,
+    [id, contactId],
+  )).rows[0];
 }
 
 async function create(data) {
@@ -105,7 +132,7 @@ async function activeAccount(id, db = pool) { return (await db.query("SELECT id 
 async function activeUser(id, db = pool) { return (await db.query("SELECT id FROM users WHERE id = $1 AND is_active = true", [id])).rows[0]; }
 
 module.exports = {
-  getAll, getById, getForUpdate, create, update, remove, getLines, getLine, createLine,
+  getAll, getById, getByIdForContact, getForPdf, getForPdfForContact, getForUpdate, create, update, remove, getLines, getLine, createLine,
   updateLine, removeLine, refreshTotals, activeVendor, activeProduct, activeTax,
   activeAnalytic, activeAccount, activeUser,
 };

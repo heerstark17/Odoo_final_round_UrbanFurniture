@@ -3,13 +3,39 @@ const { pool } = require("../config/db");
 const lineSelect = `SELECT cil.*, p.name AS product_name, t.name AS tax_name
     FROM customer_invoice_lines cil JOIN products p ON p.id = cil.product_id
     LEFT JOIN taxes t ON t.id = cil.tax_id`;
-async function getAll() {
-  return (await pool.query("SELECT * FROM customer_invoices ORDER BY id DESC"))
-    .rows;
+async function getAll(contactId = null) {
+  return (await pool.query(
+    `SELECT * FROM customer_invoices ${contactId ? "WHERE customer_id = $1" : ""} ORDER BY id DESC`,
+    contactId ? [contactId] : [],
+  )).rows;
 }
 async function getById(id, db = pool) {
   return (await db.query("SELECT * FROM customer_invoices WHERE id = $1", [id]))
     .rows[0];
+}
+async function getByIdForContact(id, contactId) {
+  return (await pool.query(
+    "SELECT * FROM customer_invoices WHERE id = $1 AND customer_id = $2",
+    [id, contactId],
+  )).rows[0];
+}
+async function getForPdf(id, db = pool) {
+  return (await db.query(
+    `SELECT ci.*, c.name AS customer_name
+     FROM customer_invoices ci
+     JOIN contacts c ON c.id = ci.customer_id
+     WHERE ci.id = $1`,
+    [id],
+  )).rows[0];
+}
+async function getForPdfForContact(id, contactId) {
+  return (await pool.query(
+    `SELECT ci.*, c.name AS customer_name
+     FROM customer_invoices ci
+     JOIN contacts c ON c.id = ci.customer_id
+     WHERE ci.id = $1 AND ci.customer_id = $2`,
+    [id, contactId],
+  )).rows[0];
 }
 async function create(data) {
   return (
@@ -180,6 +206,9 @@ async function activeUser(id, db = pool) {
 module.exports = {
   getAll,
   getById,
+  getByIdForContact,
+  getForPdf,
+  getForPdfForContact,
   create,
   update,
   remove,

@@ -1,4 +1,5 @@
 const service = require("../services/vendorBillService");
+const { createDocumentPdf } = require("../utils/documentPdf");
 
 function parseId(value, label) {
   const id = Number(value);
@@ -16,15 +17,41 @@ function writeError(res, error) {
   });
 }
 
-async function list(req, res) { try { res.json(await service.getVendorBills()); } catch (error) { writeError(res, error); } }
-async function get(req, res) { try { res.json(await service.getVendorBill(parseId(req.params.id, "vendor bill"))); } catch (error) { writeError(res, error); } }
+async function list(req, res) { try { res.json(await service.getVendorBills(req.user.role === "contact" ? req.user.contact_id : null)); } catch (error) { writeError(res, error); } }
+async function get(req, res) { try { res.json(await service.getVendorBill(parseId(req.params.id, "vendor bill"), req.user.role === "contact" ? req.user.contact_id : null)); } catch (error) { writeError(res, error); } }
+async function downloadPdf(req, res) {
+  try {
+    const billId = parseId(req.params.id, "vendor bill");
+    const [bill, lines] = await Promise.all([
+      service.getVendorBillForPdf(billId, req.user.role === "contact" ? req.user.contact_id : null),
+      service.getLines(billId, req.user.role === "contact" ? req.user.contact_id : null),
+    ]);
+    res.type("application/pdf");
+    res.attachment(`vendor-bill-${bill.bill_number}.pdf`);
+    createDocumentPdf(res, {
+      title: "Vendor Bill",
+      numberLabel: "Bill Number",
+      documentNumber: bill.bill_number,
+      documentDate: bill.bill_date,
+      partyLabel: "Vendor",
+      partyName: bill.vendor_name,
+      status: bill.status,
+      lines,
+      subtotal: bill.subtotal,
+      taxTotal: bill.tax_total,
+      grandTotal: bill.grand_total,
+    });
+  } catch (error) {
+    writeError(res, error);
+  }
+}
 async function create(req, res) { try { res.status(201).json(await service.createVendorBill(req.body)); } catch (error) { writeError(res, error); } }
 async function update(req, res) { try { res.json(await service.updateVendorBill(parseId(req.params.id, "vendor bill"), req.body)); } catch (error) { writeError(res, error); } }
 async function remove(req, res) { try { res.json({ message: "Vendor bill deleted successfully", vendorBill: await service.deleteVendorBill(parseId(req.params.id, "vendor bill")) }); } catch (error) { writeError(res, error); } }
-async function listLines(req, res) { try { res.json(await service.getLines(parseId(req.params.billId, "vendor bill"))); } catch (error) { writeError(res, error); } }
-async function getLine(req, res) { try { res.json(await service.getLine(parseId(req.params.billId, "vendor bill"), parseId(req.params.id, "vendor bill line"))); } catch (error) { writeError(res, error); } }
+async function listLines(req, res) { try { res.json(await service.getLines(parseId(req.params.billId, "vendor bill"), req.user.role === "contact" ? req.user.contact_id : null)); } catch (error) { writeError(res, error); } }
+async function getLine(req, res) { try { res.json(await service.getLine(parseId(req.params.billId, "vendor bill"), parseId(req.params.id, "vendor bill line"), req.user.role === "contact" ? req.user.contact_id : null)); } catch (error) { writeError(res, error); } }
 async function createLine(req, res) { try { res.status(201).json(await service.createLine(parseId(req.params.billId, "vendor bill"), req.body)); } catch (error) { writeError(res, error); } }
 async function updateLine(req, res) { try { res.json(await service.updateLine(parseId(req.params.billId, "vendor bill"), parseId(req.params.id, "vendor bill line"), req.body)); } catch (error) { writeError(res, error); } }
 async function removeLine(req, res) { try { res.json({ message: "Vendor bill line deleted successfully", vendorBillLine: await service.deleteLine(parseId(req.params.billId, "vendor bill"), parseId(req.params.id, "vendor bill line")) }); } catch (error) { writeError(res, error); } }
 
-module.exports = { list, get, create, update, remove, listLines, getLine, createLine, updateLine, removeLine };
+module.exports = { list, get, downloadPdf, create, update, remove, listLines, getLine, createLine, updateLine, removeLine };

@@ -21,7 +21,7 @@ function writeError(res, error) {
 
 async function list(req, res) {
   try {
-    res.json(await service.getPayments());
+    res.json(await service.getPayments(req.user.role === "contact" ? req.user.contact_id : null));
   } catch (error) {
     writeError(res, error);
   }
@@ -29,7 +29,7 @@ async function list(req, res) {
 
 async function get(req, res) {
   try {
-    res.json(await service.getPayment(parseId(req.params.id)));
+    res.json(await service.getPayment(parseId(req.params.id), req.user.role === "contact" ? req.user.contact_id : null));
   } catch (error) {
     writeError(res, error);
   }

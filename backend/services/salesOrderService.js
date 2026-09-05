@@ -90,11 +90,11 @@ function transition(existing, next) {
   if (existing === "draft" && ["confirmed", "cancelled"].includes(next)) return;
   fail(`Invalid sales order status transition from ${existing} to ${next}`);
 }
-async function getSalesOrders() {
-  return model.getAll();
+async function getSalesOrders(contactId) {
+  return model.getAll(contactId);
 }
-async function getSalesOrder(id) {
-  const item = await model.getById(id);
+async function getSalesOrder(id, contactId) {
+  const item = contactId ? await model.getByIdForContact(id, contactId) : await model.getById(id);
   if (!item) fail("Sales order not found", 404);
   return item;
 }
@@ -128,12 +128,12 @@ async function editableOrder(id) {
     fail("Lines can only be changed on draft sales orders");
   return order;
 }
-async function getLines(orderId) {
-  await getSalesOrder(orderId);
+async function getLines(orderId, contactId) {
+  await getSalesOrder(orderId, contactId);
   return model.getLines(orderId);
 }
-async function getLine(orderId, lineId) {
-  await getSalesOrder(orderId);
+async function getLine(orderId, lineId, contactId) {
+  await getSalesOrder(orderId, contactId);
   const line = await model.getLine(orderId, lineId);
   if (!line) fail("Sales order line not found for this sales order", 404);
   return line;

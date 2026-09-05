@@ -65,8 +65,9 @@ function transition(existing, next) {
   if (existing === "confirmed" && ["paid", "cancelled"].includes(next)) return;
   fail(`Invalid vendor bill status transition from ${existing} to ${next}`);
 }
-async function getVendorBills() { return model.getAll(); }
-async function getVendorBill(billId) { const item = await model.getById(billId); if (!item) fail("Vendor bill not found", 404); return item; }
+async function getVendorBills(contactId) { return model.getAll(contactId); }
+async function getVendorBill(billId, contactId) { const item = contactId ? await model.getByIdForContact(billId, contactId) : await model.getById(billId); if (!item) fail("Vendor bill not found", 404); return item; }
+async function getVendorBillForPdf(billId, contactId) { const item = contactId ? await model.getForPdfForContact(billId, contactId) : await model.getForPdf(billId); if (!item) fail("Vendor bill not found", 404); return item; }
 async function createVendorBill(data) {
   data = normalizeBill(data);
   if (data.status !== "draft") fail("Vendor bills must be created as draft");
@@ -210,8 +211,8 @@ async function confirmVendorBill(billId, data) {
 }
 async function deleteVendorBill(billId) { const item = await getVendorBill(billId); if (item.status !== "draft") fail("Only draft vendor bills can be deleted"); return model.remove(billId); }
 async function editableBill(billId) { const bill = await getVendorBill(billId); if (bill.status !== "draft") fail("Lines can only be changed on draft vendor bills"); return bill; }
-async function getLines(billId) { await getVendorBill(billId); return model.getLines(billId); }
-async function getLine(billId, lineId) { await getVendorBill(billId); const line = await model.getLine(billId, lineId); if (!line) fail("Vendor bill line not found for this vendor bill", 404); return line; }
+async function getLines(billId, contactId) { await getVendorBill(billId, contactId); return model.getLines(billId); }
+async function getLine(billId, lineId, contactId) { await getVendorBill(billId, contactId); const line = await model.getLine(billId, lineId); if (!line) fail("Vendor bill line not found for this vendor bill", 404); return line; }
 async function createLine(billId, data) { const bill = await editableBill(billId); data = normalizeLine(data); await validateLine(data, bill); const line = await model.createLine(billId, data); await model.refreshTotals(billId); return line; }
 async function updateLine(billId, lineId, data) { const bill = await editableBill(billId); await getLine(billId, lineId); data = normalizeLine(data); await validateLine(data, bill); const line = await model.updateLine(billId, lineId, data); await model.refreshTotals(billId); return line; }
 async function deleteLine(billId, lineId) { await editableBill(billId); await getLine(billId, lineId); const line = await model.removeLine(billId, lineId); await model.refreshTotals(billId); return line; }
@@ -254,6 +255,6 @@ async function createFromPurchaseOrder(orderId) {
 }
 
 module.exports = {
-  getVendorBills, getVendorBill, createVendorBill, updateVendorBill, deleteVendorBill,
+  getVendorBills, getVendorBill, getVendorBillForPdf, createVendorBill, updateVendorBill, deleteVendorBill,
   getLines, getLine, createLine, updateLine, deleteLine, createFromPurchaseOrder,
 };

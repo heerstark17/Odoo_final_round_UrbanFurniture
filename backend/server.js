@@ -16,10 +16,17 @@ const purchaseOrderRoutes = require("./routes/purchaseOrderRoutes");
 const vendorBillRoutes = require("./routes/vendorBillRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const journalEntryRoutes = require("./routes/journalEntryRoutes");
+const reportRoutes = require("./routes/reportRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
+const authRoutes = require("./routes/authRoutes");
+const { authenticateToken, requireRole } = require("./middleware/authMiddleware");
+const { notFoundHandler, errorHandler } = require("./middleware/errorMiddleware");
 
 const app = express();
 
 app.use(express.json());
+
+app.use("/api/auth", authRoutes);
 
 app.get("/", (req, res) => {
   res.json({
@@ -44,19 +51,24 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-app.use("/api/contacts", contactRoutes);
-app.use("/api/products", productRoutes);
-app.use("/api/chart-of-accounts", chartOfAccountRoutes);
-app.use("/api/taxes", taxRoutes);
-app.use("/api/journals", journalRoutes);
-app.use("/api/analytic-accounts", analyticAccountRoutes);
-app.use("/api/budgets", budgetRoutes);
-app.use("/api/sales-orders", salesOrderRoutes);
-app.use("/api/invoices", customerInvoiceRoutes);
-app.use("/api/purchase-orders", purchaseOrderRoutes);
-app.use("/api/vendor-bills", vendorBillRoutes);
-app.use("/api/payments", paymentRoutes);
-app.use("/api/journal-entries", journalEntryRoutes);
+app.use("/api/contacts", authenticateToken, contactRoutes);
+app.use("/api/products", authenticateToken, requireRole("admin", "accountant"), productRoutes);
+app.use("/api/chart-of-accounts", authenticateToken, requireRole("admin", "accountant"), chartOfAccountRoutes);
+app.use("/api/taxes", authenticateToken, requireRole("admin", "accountant"), taxRoutes);
+app.use("/api/journals", authenticateToken, requireRole("admin", "accountant"), journalRoutes);
+app.use("/api/analytic-accounts", authenticateToken, requireRole("admin", "accountant"), analyticAccountRoutes);
+app.use("/api/budgets", authenticateToken, requireRole("admin", "accountant"), budgetRoutes);
+app.use("/api/sales-orders", authenticateToken, salesOrderRoutes);
+app.use("/api/invoices", authenticateToken, customerInvoiceRoutes);
+app.use("/api/purchase-orders", authenticateToken, purchaseOrderRoutes);
+app.use("/api/vendor-bills", authenticateToken, vendorBillRoutes);
+app.use("/api/payments", authenticateToken, paymentRoutes);
+app.use("/api/journal-entries", authenticateToken, requireRole("admin", "accountant"), journalEntryRoutes);
+app.use("/api/reports", authenticateToken, requireRole("admin", "accountant"), reportRoutes);
+app.use("/api/dashboard", authenticateToken, requireRole("admin", "accountant"), dashboardRoutes);
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
