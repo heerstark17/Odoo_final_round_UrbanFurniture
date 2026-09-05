@@ -8,7 +8,6 @@
     "dev": "nodemon server.js",
     "db:setup": "node setup-db.js",
     "db:reset": "node setup-db.js --reset"
-
   },
   "keywords": [],
   "author": "",
