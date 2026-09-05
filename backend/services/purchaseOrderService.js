@@ -31,7 +31,7 @@ function decimal(value, label, minimum) {
   return Number(value);
 }
 
-function normalizeOrder(data = {}) {
+function normalizeOrder(data = {}, actorId) {
   const status = String(data.status ?? "draft").toLowerCase();
   if (!STATUSES.includes(status)) fail("Status must be draft, confirmed, or cancelled");
   if (typeof data.poNumber !== "string" || !data.poNumber.trim()) fail("Purchase order number is required");
@@ -41,7 +41,7 @@ function normalizeOrder(data = {}) {
     orderDate: date(data.orderDate ?? new Date().toISOString().slice(0, 10), "Order date"),
     status,
     notes: data.notes == null ? null : String(data.notes).trim() || null,
-    createdBy: id(data.createdBy, "Created by"),
+    createdBy: id(actorId, "Created by", true),
   };
 }
 
@@ -84,14 +84,14 @@ async function getPurchaseOrder(orderId, contactId) {
   if (!item) fail("Purchase order not found", 404);
   return item;
 }
-async function createPurchaseOrder(data) {
-  data = normalizeOrder(data);
+async function createPurchaseOrder(data, actorId) {
+  data = normalizeOrder(data, actorId);
   await validateOrder(data);
   return model.create(data);
 }
-async function updatePurchaseOrder(orderId, data) {
+async function updatePurchaseOrder(orderId, data, actorId) {
   const existing = await getPurchaseOrder(orderId);
-  data = normalizeOrder(data);
+  data = normalizeOrder(data, actorId);
   await validateOrder(data);
   transition(existing.status, data.status);
   if (existing.status !== "draft" && (String(existing.vendor_id) !== String(data.vendorId) || String(existing.order_date).slice(0, 10) !== data.orderDate)) {

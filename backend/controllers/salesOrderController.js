@@ -37,7 +37,7 @@ async function get(req, res) {
 }
 async function create(req, res) {
   try {
-    res.status(201).json(await service.createSalesOrder(req.body));
+    res.status(201).json(await service.createSalesOrder(req.body, req.user.id));
   } catch (error) {
     writeError(res, error);
   }
@@ -48,6 +48,7 @@ async function update(req, res) {
       await service.updateSalesOrder(
         parseId(req.params.id, "sales order"),
         req.body,
+        req.user.id,
       ),
     );
   } catch (error) {
@@ -133,7 +134,7 @@ async function convertToInvoice(req, res) {
     res
       .status(201)
       .json(
-        await service.convertToInvoice(parseId(req.params.id, "sales order")),
+        await service.convertToInvoice(parseId(req.params.id, "sales order"), req.user.id),
       );
   } catch (error) {
     writeError(res, error);

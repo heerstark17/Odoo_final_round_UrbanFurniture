@@ -12,8 +12,8 @@ function writeError(res, error) {
 }
 async function list(req, res) { try { res.json(await service.getJournalEntries()); } catch (error) { writeError(res, error); } }
 async function get(req, res) { try { res.json(await service.getJournalEntry(parseId(req.params.id, "journal entry"))); } catch (error) { writeError(res, error); } }
-async function create(req, res) { try { res.status(201).json(await service.createJournalEntry(req.body)); } catch (error) { writeError(res, error); } }
-async function update(req, res) { try { res.json(await service.updateJournalEntry(parseId(req.params.id, "journal entry"), req.body)); } catch (error) { writeError(res, error); } }
+async function create(req, res) { try { res.status(201).json(await service.createJournalEntry(req.body, req.user.id)); } catch (error) { writeError(res, error); } }
+async function update(req, res) { try { res.json(await service.updateJournalEntry(parseId(req.params.id, "journal entry"), req.body, req.user.id)); } catch (error) { writeError(res, error); } }
 async function remove(req, res) { try { res.json({ message: "Journal entry deleted successfully", journalEntry: await service.deleteJournalEntry(parseId(req.params.id, "journal entry")) }); } catch (error) { writeError(res, error); } }
 async function listLines(req, res) { try { res.json(await service.getLines(parseId(req.params.journalEntryId, "journal entry"))); } catch (error) { writeError(res, error); } }
 async function getLine(req, res) { try { res.json(await service.getLine(parseId(req.params.journalEntryId, "journal entry"), parseId(req.params.id, "journal entry line"))); } catch (error) { writeError(res, error); } }

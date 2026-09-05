@@ -45,8 +45,8 @@ async function downloadPdf(req, res) {
     writeError(res, error);
   }
 }
-async function create(req, res) { try { res.status(201).json(await service.createVendorBill(req.body)); } catch (error) { writeError(res, error); } }
-async function update(req, res) { try { res.json(await service.updateVendorBill(parseId(req.params.id, "vendor bill"), req.body)); } catch (error) { writeError(res, error); } }
+async function create(req, res) { try { res.status(201).json(await service.createVendorBill(req.body, req.user.id)); } catch (error) { writeError(res, error); } }
+async function update(req, res) { try { res.json(await service.updateVendorBill(parseId(req.params.id, "vendor bill"), req.body, req.user.id)); } catch (error) { writeError(res, error); } }
 async function remove(req, res) { try { res.json({ message: "Vendor bill deleted successfully", vendorBill: await service.deleteVendorBill(parseId(req.params.id, "vendor bill")) }); } catch (error) { writeError(res, error); } }
 async function listLines(req, res) { try { res.json(await service.getLines(parseId(req.params.billId, "vendor bill"), req.user.role === "contact" ? req.user.contact_id : null)); } catch (error) { writeError(res, error); } }
 async function getLine(req, res) { try { res.json(await service.getLine(parseId(req.params.billId, "vendor bill"), parseId(req.params.id, "vendor bill line"), req.user.role === "contact" ? req.user.contact_id : null)); } catch (error) { writeError(res, error); } }

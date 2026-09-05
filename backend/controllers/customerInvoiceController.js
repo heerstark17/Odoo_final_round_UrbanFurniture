@@ -62,7 +62,7 @@ async function downloadPdf(req, res) {
 }
 async function create(req, res) {
   try {
-    res.status(201).json(await service.createInvoice(req.body));
+    res.status(201).json(await service.createInvoice(req.body, req.user.id));
   } catch (error) {
     writeError(res, error);
   }
@@ -70,7 +70,7 @@ async function create(req, res) {
 async function update(req, res) {
   try {
     res.json(
-      await service.updateInvoice(parseId(req.params.id, "invoice"), req.body),
+      await service.updateInvoice(parseId(req.params.id, "invoice"), req.body, req.user.id),
     );
   } catch (error) {
     writeError(res, error);

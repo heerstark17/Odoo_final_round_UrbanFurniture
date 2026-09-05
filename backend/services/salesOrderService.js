@@ -35,7 +35,7 @@ function decimal(value, label, minimum) {
     );
   return Number(value);
 }
-function normalizeOrder(data = {}) {
+function normalizeOrder(data = {}, actorId) {
   const status = String(data.status ?? "draft").toLowerCase();
   if (!STATUSES.includes(status))
     fail("Status must be draft, confirmed, or cancelled");
@@ -50,7 +50,7 @@ function normalizeOrder(data = {}) {
     ),
     status,
     notes: data.notes == null ? null : String(data.notes).trim() || null,
-    createdBy: id(data.createdBy, "Created by"),
+    createdBy: id(actorId, "Created by", true),
   };
 }
 function normalizeLine(data = {}) {
@@ -98,14 +98,14 @@ async function getSalesOrder(id, contactId) {
   if (!item) fail("Sales order not found", 404);
   return item;
 }
-async function createSalesOrder(data) {
-  data = normalizeOrder(data);
+async function createSalesOrder(data, actorId) {
+  data = normalizeOrder(data, actorId);
   await validateOrder(data);
   return model.create(data);
 }
-async function updateSalesOrder(orderId, data) {
+async function updateSalesOrder(orderId, data, actorId) {
   const existing = await getSalesOrder(orderId);
-  data = normalizeOrder(data);
+  data = normalizeOrder(data, actorId);
   await validateOrder(data);
   transition(existing.status, data.status);
   if (
@@ -156,8 +156,8 @@ async function deleteLine(orderId, lineId) {
   await getLine(orderId, lineId);
   return model.removeLine(orderId, lineId);
 }
-async function convertToInvoice(orderId) {
-  return invoiceService.createFromSalesOrder(orderId);
+async function convertToInvoice(orderId, actorId) {
+  return invoiceService.createFromSalesOrder(orderId, actorId);
 }
 module.exports = {
   getSalesOrders,

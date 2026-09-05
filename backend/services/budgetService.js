@@ -7,7 +7,7 @@ function optionalId(value, label) {
     throw new Error(`${label} must be a valid ID`);
   return id;
 }
-function normalise(data = {}) {
+function normalise(data = {}, actorId) {
   if (typeof data.budgetName !== "string" || !data.budgetName.trim())
     throw new Error("Budget name is required");
   if (!data.startDate || !data.endDate)
@@ -23,7 +23,7 @@ function normalise(data = {}) {
     endDate: data.endDate,
     status,
     responsibleUserId: optionalId(data.responsibleUserId, "Responsible user"),
-    createdBy: optionalId(data.createdBy, "Created by"),
+    createdBy: optionalId(actorId, "Created by"),
     revisedFromId: optionalId(data.revisedFromId, "Revised from"),
   };
 }
@@ -48,14 +48,14 @@ async function validate(data, id) {
   if (data.revisedFromId && !(await model.getById(data.revisedFromId)))
     throw new Error("Revised from budget not found");
 }
-async function createBudget(data) {
-  data = normalise(data);
+async function createBudget(data, actorId) {
+  data = normalise(data, actorId);
   await validate(data, null);
   return model.create(data);
 }
-async function updateBudget(id, data) {
+async function updateBudget(id, data, actorId) {
   await getBudget(id);
-  data = normalise(data);
+  data = normalise(data, actorId);
   await validate(data, id);
   return model.update(id, data);
 }

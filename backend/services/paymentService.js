@@ -39,7 +39,7 @@ function amount(value) {
   return Number(value);
 }
 
-function normalizePayment(data = {}) {
+function normalizePayment(data = {}, actorId) {
   const invoiceId = id(data.invoiceId, "Invoice");
   const billId = id(data.billId, "Vendor bill");
 
@@ -77,7 +77,7 @@ function normalizePayment(data = {}) {
     reference:
       data.reference == null ? null : String(data.reference).trim() || null,
     status,
-    createdBy: id(data.createdBy, "Created by"),
+    createdBy: id(actorId, "Created by", true),
   };
 }
 
@@ -142,8 +142,8 @@ async function getPayment(paymentId, contactId) {
   return payment;
 }
 
-async function createPayment(data) {
-  data = normalizePayment(data);
+async function createPayment(data, actorId) {
+  data = normalizePayment(data, actorId);
   const client = await pool.connect();
 
   try {
@@ -164,8 +164,8 @@ async function createPayment(data) {
   }
 }
 
-async function updatePayment(paymentId, data) {
-  data = normalizePayment(data);
+async function updatePayment(paymentId, data, actorId) {
+  data = normalizePayment(data, actorId);
   const client = await pool.connect();
 
   try {

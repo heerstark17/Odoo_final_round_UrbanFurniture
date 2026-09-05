@@ -37,7 +37,7 @@ function decimal(value, label, minimum) {
     );
   return Number(value);
 }
-function normalizeInvoice(data = {}) {
+function normalizeInvoice(data = {}, actorId) {
   const status = String(data.status ?? "draft").toLowerCase();
   if (!STATUSES.includes(status))
     fail("Status must be draft, confirmed, paid, or cancelled");
@@ -62,7 +62,7 @@ function normalizeInvoice(data = {}) {
     reference:
       data.reference == null ? null : String(data.reference).trim() || null,
     status,
-    createdBy: id(data.createdBy, "Created by"),
+    createdBy: id(actorId, "Created by", true),
   };
 }
 function normalizeLine(data = {}) {
@@ -117,16 +117,16 @@ async function getInvoiceForPdf(invoiceId, contactId) {
   if (!item) fail("Customer invoice not found", 404);
   return item;
 }
-async function createInvoice(data) {
-  data = normalizeInvoice(data);
+async function createInvoice(data, actorId) {
+  data = normalizeInvoice(data, actorId);
   if (data.status !== "draft") fail("Customer invoices must be created as draft");
   await validateInvoice(data);
   const invoice = await model.create(data);
   return invoice;
 }
-async function updateInvoice(invoiceId, data) {
+async function updateInvoice(invoiceId, data, actorId) {
   const existing = await getInvoice(invoiceId);
-  data = normalizeInvoice({ ...data, soId: existing.so_id });
+  data = normalizeInvoice({ ...data, soId: existing.so_id }, actorId);
   if (existing.status === "draft" && data.status === "confirmed") {
     return confirmInvoice(invoiceId, data);
   }
@@ -319,7 +319,7 @@ async function deleteLine(invoiceId, lineId) {
   await model.refreshTotals(invoiceId);
   return line;
 }
-async function createFromSalesOrder(orderId) {
+async function createFromSalesOrder(orderId, actorId) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -342,8 +342,8 @@ async function createFromSalesOrder(orderId) {
       fail("Sales order must have at least one line before invoicing");
     const invoice = (
       await client.query(
-        `INSERT INTO customer_invoices (invoice_number, so_id, customer_id, invoice_date, reference, status, subtotal, tax_total, grand_total) VALUES ($1, $2, $3, CURRENT_DATE, $4, 'draft', 0, 0, 0) RETURNING *`,
-        [`INV-SO-${order.id}`, order.id, order.customer_id, order.so_number],
+        `INSERT INTO customer_invoices (invoice_number, so_id, customer_id, invoice_date, reference, status, subtotal, tax_total, grand_total, created_by) VALUES ($1, $2, $3, CURRENT_DATE, $4, 'draft', 0, 0, 0, $5) RETURNING *`,
+        [`INV-SO-${order.id}`, order.id, order.customer_id, order.so_number, actorId],
       )
     ).rows[0];
     for (const line of lines) {

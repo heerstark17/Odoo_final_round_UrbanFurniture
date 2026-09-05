@@ -27,7 +27,7 @@ function amount(value, label) {
   if (!Number.isFinite(Number(value)) || Number(value) < 0) fail(`${label} must be a non-negative number`);
   return Number(value);
 }
-function normalizeEntry(data = {}) {
+function normalizeEntry(data = {}, actorId) {
   if (typeof data.entryNumber !== "string" || !data.entryNumber.trim()) fail("Entry number is required");
   const sourceType = String(data.sourceType ?? "manual").toLowerCase();
   if (!SOURCE_TYPES.includes(sourceType)) fail("Source type must be invoice, bill, payment, or manual");
@@ -38,7 +38,7 @@ function normalizeEntry(data = {}) {
   return { entryNumber: data.entryNumber.trim(), journalId: id(data.journalId, "Journal", true),
     accountingDate: date(data.accountingDate ?? new Date().toISOString().slice(0, 10)),
     reference: data.reference == null ? null : String(data.reference).trim() || null,
-    sourceType, sourceId, status, createdBy: id(data.createdBy, "Created by") };
+    sourceType, sourceId, status, createdBy: id(actorId, "Created by", true) };
 }
 function normalizeLine(data = {}) {
   const debit = amount(data.debit, "Debit");
@@ -73,8 +73,8 @@ async function getJournalEntry(journalEntryId) {
   if (!entry) fail("Journal entry not found", 404);
   return entry;
 }
-async function createJournalEntry(data) {
-  data = normalizeEntry(data);
+async function createJournalEntry(data, actorId) {
+  data = normalizeEntry(data, actorId);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -85,8 +85,8 @@ async function createJournalEntry(data) {
     return entry;
   } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
 }
-async function updateJournalEntry(journalEntryId, data) {
-  data = normalizeEntry(data);
+async function updateJournalEntry(journalEntryId, data, actorId) {
+  data = normalizeEntry(data, actorId);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");

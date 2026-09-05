@@ -96,12 +96,15 @@ CREATE TABLE IF NOT EXISTS journals (
                 'cash'
             )
         ),
-    default_account_id BIGINT
+    default_account_id BIGINT NOT NULL
         REFERENCES chart_of_accounts(id),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE journals
+    ALTER COLUMN default_account_id SET NOT NULL;
 
 CREATE TABLE IF NOT EXISTS analytic_accounts (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

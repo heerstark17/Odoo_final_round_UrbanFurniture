@@ -37,7 +37,7 @@ async function get(req, res) {
 
 async function create(req, res) {
   try {
-    res.status(201).json(await service.createPayment(req.body));
+    res.status(201).json(await service.createPayment(req.body, req.user.id));
   } catch (error) {
     writeError(res, error);
   }
@@ -45,7 +45,7 @@ async function create(req, res) {
 
 async function update(req, res) {
   try {
-    res.json(await service.updatePayment(parseId(req.params.id), req.body));
+    res.json(await service.updatePayment(parseId(req.params.id), req.body, req.user.id));
   } catch (error) {
     writeError(res, error);
   }

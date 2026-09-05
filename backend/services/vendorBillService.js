@@ -18,7 +18,7 @@ function decimal(value, label, minimum) {
   if (value === undefined || value === null || value === "" || !Number.isFinite(Number(value)) || Number(value) < minimum) fail(`${label} must be ${minimum === 0 ? "zero or greater" : "greater than zero"}`);
   return Number(value);
 }
-function normalizeBill(data = {}) {
+function normalizeBill(data = {}, actorId) {
   const status = String(data.status ?? "draft").toLowerCase();
   if (!STATUSES.includes(status)) fail("Status must be draft, confirmed, paid, or cancelled");
   if (typeof data.billNumber !== "string" || !data.billNumber.trim()) fail("Vendor bill number is required");
@@ -28,7 +28,7 @@ function normalizeBill(data = {}) {
   return {
     billNumber: data.billNumber.trim(), poId: id(data.poId, "Purchase order"), vendorId: id(data.vendorId, "Vendor", true), billDate, dueDate,
     reference: data.reference == null ? null : String(data.reference).trim() || null,
-    status, createdBy: id(data.createdBy, "Created by"),
+    status, createdBy: id(actorId, "Created by", true),
   };
 }
 function normalizeLine(data = {}) {
@@ -68,15 +68,15 @@ function transition(existing, next) {
 async function getVendorBills(contactId) { return model.getAll(contactId); }
 async function getVendorBill(billId, contactId) { const item = contactId ? await model.getByIdForContact(billId, contactId) : await model.getById(billId); if (!item) fail("Vendor bill not found", 404); return item; }
 async function getVendorBillForPdf(billId, contactId) { const item = contactId ? await model.getForPdfForContact(billId, contactId) : await model.getForPdf(billId); if (!item) fail("Vendor bill not found", 404); return item; }
-async function createVendorBill(data) {
-  data = normalizeBill(data);
+async function createVendorBill(data, actorId) {
+  data = normalizeBill(data, actorId);
   if (data.status !== "draft") fail("Vendor bills must be created as draft");
   await validateBill(data);
   return model.create(data);
 }
-async function updateVendorBill(billId, data) {
+async function updateVendorBill(billId, data, actorId) {
   const existing = await getVendorBill(billId);
-  data = normalizeBill({ ...data, poId: existing.po_id });
+  data = normalizeBill({ ...data, poId: existing.po_id }, actorId);
   if (existing.status === "draft" && data.status === "confirmed") return confirmVendorBill(billId, data);
   if (data.status === "confirmed") fail("Only draft vendor bills can be confirmed", 409);
   await validateBill(data); transition(existing.status, data.status);
@@ -217,7 +217,7 @@ async function createLine(billId, data) { const bill = await editableBill(billId
 async function updateLine(billId, lineId, data) { const bill = await editableBill(billId); await getLine(billId, lineId); data = normalizeLine(data); await validateLine(data, bill); const line = await model.updateLine(billId, lineId, data); await model.refreshTotals(billId); return line; }
 async function deleteLine(billId, lineId) { await editableBill(billId); await getLine(billId, lineId); const line = await model.removeLine(billId, lineId); await model.refreshTotals(billId); return line; }
 
-async function createFromPurchaseOrder(orderId) {
+async function createFromPurchaseOrder(orderId, actorId) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -230,9 +230,9 @@ async function createFromPurchaseOrder(orderId) {
     if (!lines.length) fail("Purchase order must have at least one line before billing");
     for (const line of lines) if (!line.account_id) fail("Purchase order line requires an account before billing");
     const bill = (await client.query(
-      `INSERT INTO vendor_bills (bill_number, po_id, vendor_id, bill_date, reference, status, subtotal, tax_total, grand_total)
-       VALUES ($1, $2, $3, CURRENT_DATE, $4, 'draft', 0, 0, 0) RETURNING *`,
-      [`BILL-PO-${order.id}`, order.id, order.vendor_id, order.po_number],
+      `INSERT INTO vendor_bills (bill_number, po_id, vendor_id, bill_date, reference, status, subtotal, tax_total, grand_total, created_by)
+       VALUES ($1, $2, $3, CURRENT_DATE, $4, 'draft', 0, 0, 0, $5) RETURNING *`,
+      [`BILL-PO-${order.id}`, order.id, order.vendor_id, order.po_number, actorId],
     )).rows[0];
     for (const line of lines) {
       await client.query(
