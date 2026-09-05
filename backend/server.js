@@ -12,6 +12,8 @@ const analyticAccountRoutes = require("./routes/analyticAccountRoutes");
 const budgetRoutes = require("./routes/budgetRoutes");
 const salesOrderRoutes = require("./routes/salesOrderRoutes");
 const customerInvoiceRoutes = require("./routes/customerInvoiceRoutes");
+const purchaseOrderRoutes = require("./routes/purchaseOrderRoutes");
+const vendorBillRoutes = require("./routes/vendorBillRoutes");
 
 const app = express();
 
@@ -49,6 +51,8 @@ app.use("/api/analytic-accounts", analyticAccountRoutes);
 app.use("/api/budgets", budgetRoutes);
 app.use("/api/sales-orders", salesOrderRoutes);
 app.use("/api/invoices", customerInvoiceRoutes);
+app.use("/api/purchase-orders", purchaseOrderRoutes);
+app.use("/api/vendor-bills", vendorBillRoutes);
 
 const PORT = process.env.PORT || 5000;
 

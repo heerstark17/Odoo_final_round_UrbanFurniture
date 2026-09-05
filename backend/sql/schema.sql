@@ -334,13 +334,32 @@ CREATE TABLE IF NOT EXISTS purchase_order_lines (
         REFERENCES analytic_accounts(id),
     account_id BIGINT
         REFERENCES chart_of_accounts(id),
+    tax_id BIGINT
+        REFERENCES taxes(id),
+    tax_rate NUMERIC(5,2) NOT NULL DEFAULT 0
+        CHECK (tax_rate >= 0 AND tax_rate <= 100),
     quantity NUMERIC(14,3) NOT NULL
         CHECK (quantity > 0),
     unit_price NUMERIC(14,2) NOT NULL
         CHECK (unit_price >= 0),
-    line_total NUMERIC(14,2)
+    line_subtotal NUMERIC(14,2)
         GENERATED ALWAYS AS (
             ROUND(quantity * unit_price, 2)
+        ) STORED,
+    tax_amount NUMERIC(14,2)
+        GENERATED ALWAYS AS (
+            ROUND(
+                quantity * unit_price * tax_rate / 100,
+                2
+            )
+        ) STORED,
+    line_total NUMERIC(14,2)
+        GENERATED ALWAYS AS (
+            ROUND(
+                quantity * unit_price
+                + quantity * unit_price * tax_rate / 100,
+                2
+            )
         ) STORED
 );
 
@@ -613,6 +632,9 @@ CREATE INDEX IF NOT EXISTS idx_purchase_order_lines_product_id
 
 CREATE INDEX IF NOT EXISTS idx_purchase_order_lines_analytic_id
     ON purchase_order_lines(analytic_account_id);
+
+CREATE INDEX IF NOT EXISTS idx_purchase_order_lines_tax_id
+    ON purchase_order_lines(tax_id);
 
 CREATE INDEX IF NOT EXISTS idx_vendor_bills_vendor_id
     ON vendor_bills(vendor_id);
