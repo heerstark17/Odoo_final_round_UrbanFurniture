@@ -34,11 +34,12 @@ function decimal(value, label, minimum) {
 function normalizeOrder(data = {}, actorId) {
   const status = String(data.status ?? "draft").toLowerCase();
   if (!STATUSES.includes(status)) fail("Status must be draft, confirmed, or cancelled");
-  if (typeof data.poNumber !== "string" || !data.poNumber.trim()) fail("Purchase order number is required");
+  const poNumber = String(data.poNumber || data.po_number || "").trim();
+  if (!poNumber) fail("Purchase order number is required");
   return {
-    poNumber: data.poNumber.trim(),
-    vendorId: id(data.vendorId, "Vendor", true),
-    orderDate: date(data.orderDate ?? new Date().toISOString().slice(0, 10), "Order date"),
+    poNumber,
+    vendorId: id(data.vendorId ?? data.vendor_id, "Vendor", true),
+    orderDate: date(data.orderDate ?? data.order_date ?? new Date().toISOString().slice(0, 10), "Order date"),
     status,
     notes: data.notes == null ? null : String(data.notes).trim() || null,
     createdBy: id(actorId, "Created by", true),
@@ -82,15 +83,25 @@ async function getPurchaseOrders(contactId) { return model.getAll(contactId); }
 async function getPurchaseOrder(orderId, contactId) {
   const item = contactId ? await model.getByIdForContact(orderId, contactId) : await model.getById(orderId);
   if (!item) fail("Purchase order not found", 404);
+  item.lines = await model.getLines(orderId);
   return item;
 }
 async function createPurchaseOrder(data, actorId) {
-  data = normalizeOrder(data, actorId);
-  await validateOrder(data);
-  return model.create(data);
+  const lines = Array.isArray(data.lines) ? data.lines : [];
+  const orderData = normalizeOrder(data, actorId);
+  await validateOrder(orderData);
+  const created = await model.create(orderData);
+  if (lines.length > 0) {
+    for (const l of lines) {
+      const lineData = normalizeLine(l);
+      await validateLine(lineData);
+      await model.createLine(created.id, lineData);
+    }
+  }
+  return model.getById(created.id);
 }
-async function updatePurchaseOrder(orderId, data, actorId) {
-  const existing = await getPurchaseOrder(orderId);
+async function updatePurchaseOrder(orderId, data, actorId, contactId = null) {
+  const existing = await getPurchaseOrder(orderId, contactId);
   data = normalizeOrder(data, actorId);
   await validateOrder(data);
   transition(existing.status, data.status);
@@ -99,13 +110,13 @@ async function updatePurchaseOrder(orderId, data, actorId) {
   }
   return model.update(orderId, data);
 }
-async function deletePurchaseOrder(orderId) {
-  const item = await getPurchaseOrder(orderId);
+async function deletePurchaseOrder(orderId, contactId = null) {
+  const item = await getPurchaseOrder(orderId, contactId);
   if (item.status !== "draft") fail("Only draft purchase orders can be deleted");
   return model.remove(orderId);
 }
-async function editableOrder(orderId) {
-  const item = await getPurchaseOrder(orderId);
+async function editableOrder(orderId, contactId = null) {
+  const item = await getPurchaseOrder(orderId, contactId);
   if (item.status !== "draft") fail("Lines can only be changed on draft purchase orders");
   return item;
 }
@@ -116,9 +127,24 @@ async function getLine(orderId, lineId, contactId) {
   if (!line) fail("Purchase order line not found for this purchase order", 404);
   return line;
 }
-async function createLine(orderId, data) { await editableOrder(orderId); data = normalizeLine(data); await validateLine(data); return model.createLine(orderId, data); }
-async function updateLine(orderId, lineId, data) { await editableOrder(orderId); await getLine(orderId, lineId); data = normalizeLine(data); await validateLine(data); return model.updateLine(orderId, lineId, data); }
-async function deleteLine(orderId, lineId) { await editableOrder(orderId); await getLine(orderId, lineId); return model.removeLine(orderId, lineId); }
+async function createLine(orderId, data, contactId = null) {
+  await editableOrder(orderId, contactId);
+  data = normalizeLine(data);
+  await validateLine(data);
+  return model.createLine(orderId, data);
+}
+async function updateLine(orderId, lineId, data, contactId = null) {
+  await editableOrder(orderId, contactId);
+  await getLine(orderId, lineId, contactId);
+  data = normalizeLine(data);
+  await validateLine(data);
+  return model.updateLine(orderId, lineId, data);
+}
+async function deleteLine(orderId, lineId, contactId = null) {
+  await editableOrder(orderId, contactId);
+  await getLine(orderId, lineId, contactId);
+  return model.removeLine(orderId, lineId);
+}
 async function convertToBill(orderId) { return billService.createFromPurchaseOrder(orderId); }
 
 module.exports = {

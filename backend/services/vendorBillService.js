@@ -21,12 +21,13 @@ function decimal(value, label, minimum) {
 function normalizeBill(data = {}, actorId) {
   const status = String(data.status ?? "draft").toLowerCase();
   if (!STATUSES.includes(status)) fail("Status must be draft, confirmed, paid, or cancelled");
-  if (typeof data.billNumber !== "string" || !data.billNumber.trim()) fail("Vendor bill number is required");
-  const billDate = date(data.billDate ?? new Date().toISOString().slice(0, 10), "Bill date");
-  const dueDate = data.dueDate == null || data.dueDate === "" ? null : date(data.dueDate, "Due date");
+  const billNumber = String(data.billNumber || data.bill_number || "").trim();
+  if (!billNumber) fail("Vendor bill number is required");
+  const billDate = date(data.billDate ?? data.bill_date ?? new Date().toISOString().slice(0, 10), "Bill date");
+  const dueDate = data.dueDate == null || data.dueDate === "" || data.due_date == null || data.due_date === "" ? null : date(data.dueDate ?? data.due_date, "Due date");
   if (dueDate && dueDate < billDate) fail("Due date must be on or after bill date");
   return {
-    billNumber: data.billNumber.trim(), poId: id(data.poId, "Purchase order"), vendorId: id(data.vendorId, "Vendor", true), billDate, dueDate,
+    billNumber, poId: id(data.poId ?? data.po_id, "Purchase order"), vendorId: id(data.vendorId ?? data.vendor_id, "Vendor", true), billDate, dueDate,
     reference: data.reference == null ? null : String(data.reference).trim() || null,
     status, createdBy: id(actorId, "Created by", true),
   };

@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const express = require("express");
+const cors = require("cors");
 const { pool, connectDB } = require("./config/db");
 
 const contactRoutes = require("./routes/contactRoutes");
@@ -24,6 +25,7 @@ const { notFoundHandler, errorHandler } = require("./middleware/errorMiddleware"
 
 const app = express();
 
+app.use(cors());
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
@@ -52,13 +54,13 @@ app.get("/db-test", async (req, res) => {
 });
 
 app.use("/api/contacts", authenticateToken, contactRoutes);
-app.use("/api/products", authenticateToken, requireRole("admin", "accountant"), productRoutes);
+app.use("/api/products", authenticateToken, productRoutes);
 app.use("/api/chart-of-accounts", authenticateToken, requireRole("admin", "accountant"), chartOfAccountRoutes);
-app.use("/api/taxes", authenticateToken, requireRole("admin", "accountant"), taxRoutes);
+app.use("/api/taxes", authenticateToken, taxRoutes);
 app.use("/api/journals", authenticateToken, requireRole("admin", "accountant"), journalRoutes);
 app.use("/api/analytic-accounts", authenticateToken, requireRole("admin", "accountant"), analyticAccountRoutes);
 app.use("/api/budgets", authenticateToken, requireRole("admin", "accountant"), budgetRoutes);
-app.use("/api/sales-orders", authenticateToken, salesOrderRoutes);
+app.use("/api/sales-orders", authenticateToken, requireRole("admin", "accountant"), salesOrderRoutes);
 app.use("/api/invoices", authenticateToken, customerInvoiceRoutes);
 app.use("/api/purchase-orders", authenticateToken, purchaseOrderRoutes);
 app.use("/api/vendor-bills", authenticateToken, vendorBillRoutes);

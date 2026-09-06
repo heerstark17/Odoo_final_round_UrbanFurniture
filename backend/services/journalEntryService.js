@@ -71,7 +71,7 @@ async function getJournalEntries() { return model.getAll(); }
 async function getJournalEntry(journalEntryId) {
   const entry = await model.getById(journalEntryId);
   if (!entry) fail("Journal entry not found", 404);
-  return entry;
+  return { ...entry, lines: await model.getLines(journalEntryId) };
 }
 async function createJournalEntry(data, actorId) {
   data = normalizeEntry(data, actorId);

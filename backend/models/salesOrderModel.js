@@ -1,27 +1,31 @@
 const { pool } = require("../config/db");
 
-const orderSelect = `SELECT so.*, COALESCE(SUM(sol.line_subtotal), 0)::NUMERIC(14,2) AS subtotal,
+const orderSelect = `SELECT so.*, c.name AS customer_name,
+    COALESCE(SUM(sol.line_subtotal), 0)::NUMERIC(14,2) AS subtotal,
     COALESCE(SUM(sol.tax_amount), 0)::NUMERIC(14,2) AS tax_total,
-    COALESCE(SUM(sol.line_total), 0)::NUMERIC(14,2) AS grand_total
-    FROM sales_orders so LEFT JOIN sales_order_lines sol ON sol.sales_order_id = so.id`;
+    COALESCE(SUM(sol.line_total), 0)::NUMERIC(14,2) AS grand_total,
+    COALESCE(SUM(sol.line_total), 0)::NUMERIC(14,2) AS total_amount
+    FROM sales_orders so
+    LEFT JOIN contacts c ON c.id = so.customer_id
+    LEFT JOIN sales_order_lines sol ON sol.sales_order_id = so.id`;
 const lineSelect = `SELECT sol.*, p.name AS product_name, t.name AS tax_name
     FROM sales_order_lines sol JOIN products p ON p.id = sol.product_id
     LEFT JOIN taxes t ON t.id = sol.tax_id`;
 
 async function getAll(contactId = null) {
   return (await pool.query(
-    `${orderSelect} ${contactId ? "WHERE so.customer_id = $1" : ""} GROUP BY so.id ORDER BY so.id DESC`,
+    `${orderSelect} ${contactId ? "WHERE so.customer_id = $1" : ""} GROUP BY so.id, c.name ORDER BY so.id DESC`,
     contactId ? [contactId] : [],
   )).rows;
 }
 async function getById(id, db = pool) {
   return (
-    await db.query(`${orderSelect} WHERE so.id = $1 GROUP BY so.id`, [id])
+    await db.query(`${orderSelect} WHERE so.id = $1 GROUP BY so.id, c.name`, [id])
   ).rows[0];
 }
 async function getByIdForContact(id, contactId) {
   return (
-    await pool.query(`${orderSelect} WHERE so.id = $1 AND so.customer_id = $2 GROUP BY so.id`, [id, contactId])
+    await pool.query(`${orderSelect} WHERE so.id = $1 AND so.customer_id = $2 GROUP BY so.id, c.name`, [id, contactId])
   ).rows[0];
 }
 async function create(data) {

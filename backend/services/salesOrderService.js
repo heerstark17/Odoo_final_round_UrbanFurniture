@@ -39,13 +39,14 @@ function normalizeOrder(data = {}, actorId) {
   const status = String(data.status ?? "draft").toLowerCase();
   if (!STATUSES.includes(status))
     fail("Status must be draft, confirmed, or cancelled");
-  if (typeof data.soNumber !== "string" || !data.soNumber.trim())
+  const soNumber = String(data.soNumber || data.so_number || "").trim();
+  if (!soNumber)
     fail("Sales order number is required");
   return {
-    soNumber: data.soNumber.trim(),
-    customerId: id(data.customerId, "Customer", true),
+    soNumber,
+    customerId: id(data.customerId ?? data.customer_id, "Customer", true),
     orderDate: date(
-      data.orderDate ?? new Date().toISOString().slice(0, 10),
+      data.orderDate ?? data.order_date ?? new Date().toISOString().slice(0, 10),
       "Order date",
     ),
     status,
@@ -96,12 +97,22 @@ async function getSalesOrders(contactId) {
 async function getSalesOrder(id, contactId) {
   const item = contactId ? await model.getByIdForContact(id, contactId) : await model.getById(id);
   if (!item) fail("Sales order not found", 404);
+  item.lines = await model.getLines(id);
   return item;
 }
 async function createSalesOrder(data, actorId) {
-  data = normalizeOrder(data, actorId);
-  await validateOrder(data);
-  return model.create(data);
+  const lines = Array.isArray(data.lines) ? data.lines : [];
+  const orderData = normalizeOrder(data, actorId);
+  await validateOrder(orderData);
+  const created = await model.create(orderData);
+  if (lines.length > 0) {
+    for (const l of lines) {
+      const lineData = normalizeLine(l);
+      await validateLine(lineData);
+      await model.createLine(created.id, lineData);
+    }
+  }
+  return model.getById(created.id);
 }
 async function updateSalesOrder(orderId, data, actorId) {
   const existing = await getSalesOrder(orderId);

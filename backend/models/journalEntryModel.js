@@ -1,10 +1,14 @@
 const { pool } = require("../config/db");
 
 const entrySelect = `SELECT je.*, j.journal_name, j.journal_type,
-    u.full_name AS created_by_name
+  u.full_name AS created_by_name,
+  COALESCE(SUM(jel.debit), 0)::NUMERIC(14,2) AS total_debit,
+  COALESCE(SUM(jel.credit), 0)::NUMERIC(14,2) AS total_credit,
+  COUNT(jel.id)::INTEGER AS line_count
     FROM journal_entries je
     JOIN journals j ON j.id = je.journal_id
-    LEFT JOIN users u ON u.id = je.created_by`;
+  LEFT JOIN users u ON u.id = je.created_by
+  LEFT JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id`;
 const lineSelect = `SELECT jel.*, a.account_code, a.account_name,
     p.name AS partner_name, aa.name AS analytic_account_name
     FROM journal_entry_lines jel
@@ -13,10 +17,10 @@ const lineSelect = `SELECT jel.*, a.account_code, a.account_name,
     LEFT JOIN analytic_accounts aa ON aa.id = jel.analytic_account_id`;
 
 async function getAll(db = pool) {
-  return (await db.query(`${entrySelect} ORDER BY je.id DESC`)).rows;
+  return (await db.query(`${entrySelect} GROUP BY je.id, j.journal_name, j.journal_type, u.full_name ORDER BY je.id DESC`)).rows;
 }
 async function getById(id, db = pool) {
-  return (await db.query(`${entrySelect} WHERE je.id = $1`, [id])).rows[0];
+  return (await db.query(`${entrySelect} WHERE je.id = $1 GROUP BY je.id, j.journal_name, j.journal_type, u.full_name`, [id])).rows[0];
 }
 async function getForUpdate(id, db) {
   return (await db.query("SELECT * FROM journal_entries WHERE id = $1 FOR UPDATE", [id])).rows[0];

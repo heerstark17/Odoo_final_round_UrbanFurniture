@@ -1,9 +1,12 @@
 const { pool } = require("../config/db");
 
-const orderSelect = `SELECT po.*, COALESCE(SUM(pol.line_subtotal), 0)::NUMERIC(14,2) AS subtotal,
+const orderSelect = `SELECT po.*, c.name AS vendor_name,
+    COALESCE(SUM(pol.line_subtotal), 0)::NUMERIC(14,2) AS subtotal,
     COALESCE(SUM(pol.tax_amount), 0)::NUMERIC(14,2) AS tax_total,
-    COALESCE(SUM(pol.line_total), 0)::NUMERIC(14,2) AS grand_total
+    COALESCE(SUM(pol.line_total), 0)::NUMERIC(14,2) AS grand_total,
+    COALESCE(SUM(pol.line_total), 0)::NUMERIC(14,2) AS total_amount
     FROM purchase_orders po
+    LEFT JOIN contacts c ON c.id = po.vendor_id
     LEFT JOIN purchase_order_lines pol ON pol.purchase_order_id = po.id`;
 
 const lineSelect = `SELECT pol.*, p.name AS product_name, t.name AS tax_name
@@ -13,19 +16,19 @@ const lineSelect = `SELECT pol.*, p.name AS product_name, t.name AS tax_name
 
 async function getAll(contactId = null) {
   return (await pool.query(
-    `${orderSelect} ${contactId ? "WHERE po.vendor_id = $1" : ""} GROUP BY po.id ORDER BY po.id DESC`,
+    `${orderSelect} ${contactId ? "WHERE po.vendor_id = $1" : ""} GROUP BY po.id, c.name ORDER BY po.id DESC`,
     contactId ? [contactId] : [],
   )).rows;
 }
 
 async function getById(id, db = pool) {
   return (
-    await db.query(`${orderSelect} WHERE po.id = $1 GROUP BY po.id`, [id])
+    await db.query(`${orderSelect} WHERE po.id = $1 GROUP BY po.id, c.name`, [id])
   ).rows[0];
 }
 async function getByIdForContact(id, contactId) {
   return (await pool.query(
-    `${orderSelect} WHERE po.id = $1 AND po.vendor_id = $2 GROUP BY po.id`,
+    `${orderSelect} WHERE po.id = $1 AND po.vendor_id = $2 GROUP BY po.id, c.name`,
     [id, contactId],
   )).rows[0];
 }
@@ -151,7 +154,7 @@ async function removeLine(orderId, id) {
 async function activeVendor(id) {
   return (
     await pool.query(
-      "SELECT id FROM contacts WHERE id = $1 AND is_active = true AND contact_type IN ('vendor', 'both')",
+      "SELECT id FROM contacts WHERE id = $1 AND is_active = true",
       [id],
     )
   ).rows[0];

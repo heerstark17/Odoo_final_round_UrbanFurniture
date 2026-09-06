@@ -425,10 +425,69 @@ INSERT INTO users (
     contact_id
 )
 SELECT
+    'admin',
+    'Urban Furniture Admin',
+    'admin@urbanfurniture.local',
+    '$2b$10$t.qE2FPWMSKre8FUiSaNZO3M1kcPQBJgs663wiKtZqoi3JzMBAd2O',
+    'admin',
+    NULL
+WHERE NOT EXISTS (
+    SELECT 1 FROM users WHERE login_id = 'admin'
+);
+
+INSERT INTO users (
+    login_id,
+    full_name,
+    email,
+    password_hash,
+    role,
+    contact_id
+)
+SELECT
+    'accountant',
+    'Urban Furniture Accountant',
+    'accountant@urbanfurniture.local',
+    '$2b$10$I9RSDkXS4JFH28Lm2IJuz.XQij7vned3o3S5lK.6/hAKsaCvpUrrq',
+    'accountant',
+    NULL
+WHERE NOT EXISTS (
+    SELECT 1 FROM users WHERE login_id = 'accountant'
+);
+
+INSERT INTO users (
+    login_id,
+    full_name,
+    email,
+    password_hash,
+    role,
+    contact_id
+)
+SELECT
+    'contact',
+    'Nimesh Pathak (Customer)',
+    'nimesh@example.com',
+    '$2b$10$J8tZeEx1yDl5gHeOnOZWO.Y3.x07kEeDfzLu1imBzNyCPWt8rzukG',
+    'contact',
+    c.id
+FROM contacts c
+WHERE c.email = 'nimesh@example.com'
+  AND NOT EXISTS (
+      SELECT 1 FROM users WHERE login_id = 'contact'
+  );
+
+INSERT INTO users (
+    login_id,
+    full_name,
+    email,
+    password_hash,
+    role,
+    contact_id
+)
+SELECT
     format('admin%3$s', series.number, '', to_char(series.number, 'FM000')),
     format('Demo Admin %s', to_char(series.number, 'FM000')),
     format('admin%3$s@urbanfurniture.local', series.number, '', to_char(series.number, 'FM000')),
-    '$2b$10$.jycNP.ph3zlWPbOJIL2B.wTjgk7khExOKyeF28lA75g3F1XiYHDa',
+    '$2b$10$t.qE2FPWMSKre8FUiSaNZO3M1kcPQBJgs663wiKtZqoi3JzMBAd2O',
     'admin',
     NULL
 FROM generate_series(1, 200) AS series(number)
@@ -446,7 +505,7 @@ SELECT
     format('accountant%3$s', series.number, '', to_char(series.number, 'FM000')),
     format('Demo Accountant %s', to_char(series.number, 'FM000')),
     format('accountant%3$s@urbanfurniture.local', series.number, '', to_char(series.number, 'FM000')),
-    '$2b$10$.jycNP.ph3zlWPbOJIL2B.wTjgk7khExOKyeF28lA75g3F1XiYHDa',
+    '$2b$10$I9RSDkXS4JFH28Lm2IJuz.XQij7vned3o3S5lK.6/hAKsaCvpUrrq',
     'accountant',
     NULL
 FROM generate_series(1, 200) AS series(number)
@@ -464,7 +523,7 @@ SELECT
     format('contact%3$s', series.number, '', to_char(series.number, 'FM000')),
     format('Demo Contact %s', to_char(series.number, 'FM000')),
     format('contact%3$s@example.com', series.number, '', to_char(series.number, 'FM000')),
-    '$2b$10$.jycNP.ph3zlWPbOJIL2B.wTjgk7khExOKyeF28lA75g3F1XiYHDa',
+    '$2b$10$J8tZeEx1yDl5gHeOnOZWO.Y3.x07kEeDfzLu1imBzNyCPWt8rzukG',
     'contact',
     c.id
 FROM generate_series(1, 200) AS series(number)

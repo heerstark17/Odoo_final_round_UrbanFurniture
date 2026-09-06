@@ -42,21 +42,22 @@ function normalizeInvoice(data = {}, actorId) {
   if (!STATUSES.includes(status))
     fail("Status must be draft, confirmed, paid, or cancelled");
   const invoiceDate = date(
-    data.invoiceDate ?? new Date().toISOString().slice(0, 10),
+    data.invoiceDate ?? data.invoice_date ?? new Date().toISOString().slice(0, 10),
     "Invoice date",
   );
   const dueDate =
-    data.dueDate == null || data.dueDate === ""
+    data.dueDate == null || data.dueDate === "" || data.due_date == null || data.due_date === ""
       ? null
-      : date(data.dueDate, "Due date");
+      : date(data.dueDate ?? data.due_date, "Due date");
   if (dueDate && dueDate < invoiceDate)
     fail("Due date must be on or after invoice date");
-  if (typeof data.invoiceNumber !== "string" || !data.invoiceNumber.trim())
+  const invoiceNumber = String(data.invoiceNumber || data.invoice_number || "").trim();
+  if (!invoiceNumber)
     fail("Invoice number is required");
   return {
-    invoiceNumber: data.invoiceNumber.trim(),
-    soId: id(data.soId, "Sales order"),
-    customerId: id(data.customerId, "Customer", true),
+    invoiceNumber,
+    soId: id(data.soId ?? data.so_id, "Sales order"),
+    customerId: id(data.customerId ?? data.customer_id, "Customer", true),
     invoiceDate,
     dueDate,
     reference:
